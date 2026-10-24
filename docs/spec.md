@@ -66,7 +66,7 @@ One rule governs all of them: always write with `updateDoc` and name only the fi
 | Check / uncheck | `updateDoc { checked, updatedAt }` | Later write wins; survives a concurrent rename |
 | Delete | `updateDoc { deletedAt: serverTimestamp() }` | A concurrent rename lands and the item stays deleted |
 | Undelete | `updateDoc { deletedAt: null }` | Later write wins, so undo works |
-| Clear checked | Batched `deletedAt` writes, up to 500 per batch | An item checked elsewhere a moment later survives if its write lands after |
+| Clear checked | Batched `deletedAt` writes, up to 500 per batch | An item unchecked elsewhere at the same time stays deleted; undo brings it back |
 
 Deletion is soft so that undo is possible and so a batch clear can be reversed. Hard deletion would also be correct here, since the server propagates removals and no client can resurrect a document, but it gives up undo for nothing.
 
@@ -228,7 +228,7 @@ For Claude Code: hand it this document, then one milestone per session. Ask for 
 
 ## Open questions (added during milestone 1)
 
-1. **Clear checked vs. a concurrent uncheck.** A check or uncheck writes only `checked`, never `deletedAt`. So if one phone clears checked items while another unchecks one of them to keep it, the item stays deleted; only undo brings it back. The "Clear checked" row in the operation table claims otherwise. Decide whether that outcome is acceptable or whether an uncheck should also write `deletedAt: null`.
+1. **Clear checked vs. a concurrent uncheck.** A check or uncheck writes only `checked`, never `deletedAt`. So if one phone clears checked items while another unchecks one of them to keep it, the item stays deleted; only undo brings it back. **Decided 2026-10-24: acceptable.** An uncheck does not write `deletedAt`; the operation table states this outcome.
 2. **Offline delete and the live-items query.** `deletedAt: serverTimestamp()` reads as null on the phone until the server confirms the write. If the local query engine also treats the pending value as null, `where('deletedAt', '==', null)` keeps showing a deleted item while offline. Check this in the emulator harness (milestone 3). If it fails, add a boolean `deleted` next to `deletedAt`, or use a timestamp set on the phone.
 3. **Null `updatedAt`.** Reading snapshots with `{ serverTimestamps: 'estimate' }` gives a local estimate instead of null.
 4. **Emulator API names.** With the current modular SDK the harness uses `connectFirestoreEmulator` and `connectAuthEmulator`, not `useEmulator`.
