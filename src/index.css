@@ -1,0 +1,78 @@
+:root {
+  --text: #1b1b1b;
+  --muted: #5f5f5f;
+  --bg: #ffffff;
+  --accent: #2e7d32;
+  --accent-text: #ffffff;
+  --border: #dddddd;
+
+  font: 18px/1.4 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #f1f1f1;
+    --muted: #a8a8a8;
+    --bg: #121212;
+    --accent: #66bb6a;
+    --accent-text: #0b1f0c;
+    --border: #333333;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+.screen {
+  min-height: 100dvh;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+/* Touch targets of at least 48px: the app is used one-handed in a shop. */
+button {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
