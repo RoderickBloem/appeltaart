@@ -76,3 +76,71 @@ button.primary {
   background: var(--accent);
   color: var(--accent-text);
 }
+
+.who {
+  margin-left: auto;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pinned at the top so it is always in reach. */
+.add {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 16px -16px 0;
+  padding: 8px 16px;
+  background: var(--bg);
+}
+
+.add input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.items li {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The whole row is the check target. */
+.items .item {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  padding: 0 4px;
+  text-align: left;
+}
+
+.items .delete {
+  border: 0;
+  color: var(--muted);
+  font-size: 1.5rem;
+}
+
+.checked {
+  margin-top: 24px;
+  opacity: 0.55;
+}
+
+.checked .item {
+  text-decoration: line-through;
+}
+
+.checked > button {
+  margin-top: 12px;
+}

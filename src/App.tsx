@@ -1,5 +1,6 @@
 import { signOut } from 'firebase/auth'
 import { auth } from './firebase'
+import { ShoppingList } from './ShoppingList'
 import { SignIn } from './SignIn'
 import { useAuth } from './useAuth'
 
@@ -13,11 +14,12 @@ function App() {
     <main className="screen">
       <header className="bar">
         <h1>Appeltaart</h1>
+        <span className="who" data-testid="user-name">
+          {user.displayName ?? user.email}
+        </span>
         <button onClick={() => signOut(auth)}>Sign out</button>
       </header>
-      <p>
-        Signed in as <strong data-testid="user-name">{user.displayName ?? user.email}</strong>
-      </p>
+      <ShoppingList user={user} />
     </main>
   )
 }

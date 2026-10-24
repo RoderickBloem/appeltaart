@@ -10,6 +10,6 @@ interface ImportMetaEnv {
 }
 
 interface Window {
-  /** Present only in builds that use the Firebase emulators. */
-  emulatorSignIn?: (name: string, email: string) => Promise<void>
+  /** Present only in builds that use the Firebase emulators. Resolves to the uid. */
+  emulatorSignIn?: (name: string, email: string) => Promise<string>
 }

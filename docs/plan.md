@@ -5,8 +5,8 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 | # | Milestone | Status |
 | --- | --- | --- |
 | 1 | Skeleton | Built and tested in the browser. Waiting on the maintainer: Firebase project, `.env.production`, deploy, install on a phone. |
-| 2 | Single-device list | Next |
-| 3 | Emulator and harness | Not started |
+| 2 | Single-device list | Built and tested against the emulators (7 tests in `e2e/list.spec.ts`). Not yet tried on a phone. |
+| 3 | Emulator and harness | Next |
 | 4 | Sharing | Not started |
 | 5 | Shopping polish | Not started |
 | 6 | Categories | Not started; only after two weeks of using milestone 5 |
@@ -17,10 +17,21 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 
 - **2026-10-24 — Clear checked vs. a concurrent uncheck.** If one phone clears checked items while another unchecks one of them, the item stays deleted; undo brings it back. An uncheck writes only `checked`.
 - **2026-10-24 — Everything is committed to `main`.**
+- **2026-10-24 — Offline delete (open question 2).** Settled: the live-items query drops an offline-deleted item at once; no extra `deleted` field needed.
+- **2026-10-24 — `createdAt` from the phone's clock.** A pending `serverTimestamp()` is estimated to whole seconds, which shuffled items added offline. See open question 6 in the spec.
+- **2026-10-24 — One list per user, for now.** The list document is `lists/{uid}`, created on first sign-in with `members: { uid: true }`. Milestone 4 replaces this with a list found through its members map.
 
-## Notes for milestone 2
+## What milestone 2 built
 
-- Initialise Firestore with `persistentLocalCache` and `persistentMultipleTabManager`, and connect it to the Firestore emulator (port 8080, already in `firebase.json`) when `VITE_USE_EMULATORS` is `true`.
-- Write the test first: add items offline, reload the page with the network still off, and check the items are still there; then go online and check they reach the emulator.
-- Milestone 2 is single-device, so creating the list document can be minimal: one list per user, created on first sign-in. The members map and security rules come in milestone 4.
-- Open questions 2–4 at the end of `spec.md` affect the item writes; question 2 (offline delete and the live-items query) can be checked as soon as the delete test exists.
+- `src/firebase.ts`: Firestore with `persistentLocalCache` and `persistentMultipleTabManager`, connected to the Firestore emulator when `VITE_USE_EMULATORS` is `true`. `window.emulatorSignIn` now resolves to the uid.
+- `src/list.ts`: the item writes from the spec's operation table (add, check, uncheck, soft delete, batched clear checked) and `useItems`, one `onSnapshot` on `where('deletedAt', '==', null)` with `limit(500)`, sorted by `createdAt` on the phone. Writes are never awaited.
+- `src/ShoppingList.tsx`: the input at the top (stays focused), live items, checked items dimmed below, a delete button per row, and "Clear checked".
+- `npm run test:e2e` now starts the Firestore emulator as well. Each list test signs in as a fresh user, so tests do not share a list, and reads the server state straight from the emulator's REST API.
+
+Left for milestone 5, as the build order says: swipe to delete, the undo toast, the pending-write indicator, wake lock, duplicate collapsing.
+
+## Notes for milestone 3
+
+- The e2e tests already show restart durability (property 4) in a real browser: `e2e/list.spec.ts`, "offline changes survive a force-quit and sync when back online". The harness still needs it with several clients.
+- The harness can call the functions in `src/list.ts` directly if they take a Firestore instance; today they use the single `db` from `src/firebase.ts`, so that needs a small refactor.
+- Use `connectFirestoreEmulator` and `connectAuthEmulator` (open question 4).

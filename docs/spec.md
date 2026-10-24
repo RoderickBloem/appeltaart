@@ -47,7 +47,7 @@ The item document:
 | `normName` | string | Lower-cased, trimmed, accents folded; used to spot duplicates |
 | `checked` | boolean |  |
 | `deletedAt` | timestamp or null | Null means live |
-| `createdAt` | timestamp |  |
+| `createdAt` | timestamp | From the phone's clock, not `serverTimestamp()`; orders the list (see open question 6) |
 | `updatedAt` | timestamp | Set on every write |
 | `createdBy` | string | uid, for a later "who added this" |
 
@@ -229,7 +229,11 @@ For Claude Code: hand it this document, then one milestone per session. Ask for 
 ## Open questions (added during milestone 1)
 
 1. **Clear checked vs. a concurrent uncheck.** A check or uncheck writes only `checked`, never `deletedAt`. So if one phone clears checked items while another unchecks one of them to keep it, the item stays deleted; only undo brings it back. **Decided 2026-10-24: acceptable.** An uncheck does not write `deletedAt`; the operation table states this outcome.
-2. **Offline delete and the live-items query.** `deletedAt: serverTimestamp()` reads as null on the phone until the server confirms the write. If the local query engine also treats the pending value as null, `where('deletedAt', '==', null)` keeps showing a deleted item while offline. Check this in the emulator harness (milestone 3). If it fails, add a boolean `deleted` next to `deletedAt`, or use a timestamp set on the phone.
+2. **Offline delete and the live-items query.** `deletedAt: serverTimestamp()` reads as null on the phone until the server confirms the write. If the local query engine also treats the pending value as null, `where('deletedAt', '==', null)` keeps showing a deleted item while offline. Check this in the emulator harness (milestone 3). If it fails, add a boolean `deleted` next to `deletedAt`, or use a timestamp set on the phone. **Settled 2026-10-24 (milestone 2): no problem.** A pending server timestamp does not match `== null` in the local query engine, so an offline delete leaves the live-items query at once and stays gone after a restart with no network. Covered by the test "an offline delete leaves the live list at once, also after a restart" in `e2e/list.spec.ts`.
 3. **Null `updatedAt`.** Reading snapshots with `{ serverTimestamps: 'estimate' }` gives a local estimate instead of null.
 4. **Emulator API names.** With the current modular SDK the harness uses `connectFirestoreEmulator` and `connectAuthEmulator`, not `useEmulator`.
 5. **"Property 4 reproduces your current bug."** No bug is described and no earlier app exists in this repository.
+
+## Open questions (added during milestone 2)
+
+6. **Ordering by `createdAt`.** While a write is pending, the local estimate of a `serverTimestamp()` has whole-second precision, so items typed offline within the same second came out in random order. **Decided 2026-10-24:** `createdAt` is set from the phone's clock, strictly increasing within one app session. Items added on different phones are ordered by those phones' clocks, which is close enough for a shopping list. `updatedAt` and `deletedAt` stay `serverTimestamp()`.

@@ -2,7 +2,7 @@
 
 A shared grocery list for three family members that keeps working without signal in the shop. The plan is in [`docs/spec.md`](docs/spec.md); it is built one milestone at a time.
 
-Status: milestone 1 (skeleton) — installable PWA with Google sign-in.
+Status: milestone 2 (single-device list) — add, check, uncheck, delete and clear checked, working offline.
 
 ## Development
 
@@ -20,7 +20,7 @@ npm run dev         # terminal 2: app at http://localhost:5173
 | --- | --- |
 | `npm run build` | Type-check and build to `dist/`, including the service worker |
 | `npm run lint` | Lint with oxlint |
-| `npm run test:e2e` | Start the Auth emulator, build, and run the Playwright tests in `e2e/` |
+| `npm run test:e2e` | Start the Auth and Firestore emulators, build, and run the Playwright tests in `e2e/` |
 | `npm run icons` | Re-render the PNG icons from `public/icon.svg` |
 
 `e2e/popup.spec.ts` signs in through the real button and the emulator's popup. That popup loads a script from `apis.google.com`, so the test needs access to that host. The other tests sign in through the emulator directly.
