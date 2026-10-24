@@ -18,9 +18,8 @@ test('the app shell opens with no network', async ({ page, context }) => {
   await expect(page.getByRole('heading', { name: 'Appeltaart' })).toBeVisible()
 })
 
-// The real button opens Google's popup, which loads apis.google.com and so
-// cannot run offline or in a sandbox. This signs in through the emulator
-// instead; it checks what the user sees after sign-in, not the popup itself.
+// These sign in through the emulator directly, because the popup cannot
+// open offline; e2e/popup.spec.ts covers the popup itself.
 test('a signed-in user sees their name, also after a reload', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('button', { name: 'Sign in with Google' })).toBeVisible()

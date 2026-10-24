@@ -23,7 +23,7 @@ npm run dev         # terminal 2: app at http://localhost:5173
 | `npm run test:e2e` | Start the Auth emulator, build, and run the Playwright tests in `e2e/` |
 | `npm run icons` | Re-render the PNG icons from `public/icon.svg` |
 
-The tests sign in through the emulator directly rather than through the Google popup, because the popup loads a script from `apis.google.com`. The popup itself is checked by hand on a phone.
+`e2e/popup.spec.ts` signs in through the real button and the emulator's popup. That popup loads a script from `apis.google.com`, so the test needs access to that host. The other tests sign in through the emulator directly.
 
 ## Deploying to a real Firebase project
 
