@@ -90,6 +90,13 @@ Left for milestone 5, as the build order says: swipe to delete, the undo toast, 
 - Every milestone in the build order is built. Candidates for later: editing categories in the app (names, colours, shop order); seed names in another language; swipe-to-delete; editing a quantity by tapping its chip.
 - Removing a member in the console is untested: their listeners will be refused by the rules, and the app has no handling for that.
 
+## Feature requests
+
+From the maintainer, not yet scheduled:
+
+- **Multiple shopping lists** (2026-10-25), each shared with a chosen set of people. What exists already: every list has its own `members` and invitations, and `useMyList` picks one list per user (most members, then oldest; spec, open question 11). Needed: a way to create a list, switch between lists, and choose whom to invite to each; the app then remembers the last list used per phone. Open points: whether categories and learned products are per list (as now) or shared across a person's lists, and what replaces "most members wins" when someone belongs to several lists on purpose.
+- **A seed list from the maintainer's supermarket** (2026-10-25). The maintainer will provide product names and categories; they replace or extend `src/seed.ts`, possibly in another language, and may change the category order in `src/categories.ts` to match that shop.
+
 ## Still open
 
 - The tombstone purge script (spec, "Operation semantics") is not written yet. The items query's `limit(2000)` counts tombstones; at a few hundred deleted items a month, the limit is reached within a year without it.
