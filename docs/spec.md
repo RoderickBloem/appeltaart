@@ -45,8 +45,8 @@ The item document:
 | --- | --- | --- |
 | `name` | string | As typed, including capitals |
 | `normName` | string | Lower-cased, trimmed, accents folded; used to spot duplicates |
-| `checked` | boolean |  |
-| `deletedAt` | timestamp or null | Null means live |
+| `checked` | boolean | Missing means false (see open question 9) |
+| `deletedAt` | timestamp or null | Null or missing means live |
 | `createdAt` | timestamp | From the phone's clock, not `serverTimestamp()`; orders the list (see open question 6) |
 | `updatedAt` | timestamp | Set on every write |
 | `createdBy` | string | uid, for a later "who added this" |
@@ -61,7 +61,7 @@ One rule governs all of them: always write with `updateDoc` and name only the fi
 
 | Operation | Write | Conflict outcome |
 | --- | --- | --- |
-| Add | `setDoc` of a new item, `deletedAt: null` | New id each time, so two adds never collide |
+| Add | `setDoc` with `merge: true` of a new item, without `checked` or `deletedAt` | New id each time, so two adds never collide; a re-sent add cannot undo a check or delete (open question 9) |
 | Rename | `updateDoc { name, normName, updatedAt }` | Later write wins |
 | Check / uncheck | `updateDoc { checked, updatedAt }` | Later write wins; survives a concurrent rename |
 | Delete | `updateDoc { deletedAt: serverTimestamp() }` | A concurrent rename lands and the item stays deleted |
@@ -70,7 +70,7 @@ One rule governs all of them: always write with `updateDoc` and name only the fi
 
 Deletion is soft so that undo is possible and so a batch clear can be reversed. Hard deletion would also be correct here, since the server propagates removals and no client can resurrect a document, but it gives up undo for nothing.
 
-Queries filter on `where('deletedAt', '==', null)` with a `limit()`. Tombstones are purged by hand with a script that removes items whose `deletedAt` is older than 30 days.
+The items query fetches every item, tombstones included, with a `limit()`, and the app drops deleted items itself; filtering on `where('deletedAt', '==', null)` in the query loses deletes (open question 7). Tombstones are purged by hand with a script that removes items whose `deletedAt` is older than 30 days, which also keeps them from crowding live items out of the limit.
 
 The one case the data model cannot fix: two people offline both add milk, producing two items. Collapse them in the UI by grouping live items with the same `normName`, showing one row, and applying a check to every item in the group.
 
@@ -159,7 +159,7 @@ No settings screen, no list switcher, no categories. Those arrive with the mid-t
 
 Run everything against the Firestore emulator, not the live project. The emulator starts in a second, resets between tests, and lets a test disconnect a client on demand.
 
-The harness builds three clients against the emulator, each a separate Firestore instance with its own cache, and drives them through `useEmulator` plus `disableNetwork()` and `enableNetwork()` to simulate flight mode.
+The harness builds three clients against the emulator, each a separate Firestore instance with its own cache, and drives them through `useEmulator` plus `disableNetwork()` and `enableNetwork()` to simulate flight mode. (As built in milestone 3: each client is a page in its own browser context, so it has its own IndexedDB and network connections; a restart is a page reload. See `src/harness.ts` and `e2e/sync.spec.ts`.)
 
 The properties to assert, stated so they can be checked mechanically:
 
@@ -231,9 +231,15 @@ For Claude Code: hand it this document, then one milestone per session. Ask for 
 1. **Clear checked vs. a concurrent uncheck.** A check or uncheck writes only `checked`, never `deletedAt`. So if one phone clears checked items while another unchecks one of them to keep it, the item stays deleted; only undo brings it back. **Decided 2026-10-24: acceptable.** An uncheck does not write `deletedAt`; the operation table states this outcome.
 2. **Offline delete and the live-items query.** `deletedAt: serverTimestamp()` reads as null on the phone until the server confirms the write. If the local query engine also treats the pending value as null, `where('deletedAt', '==', null)` keeps showing a deleted item while offline. Check this in the emulator harness (milestone 3). If it fails, add a boolean `deleted` next to `deletedAt`, or use a timestamp set on the phone. **Settled 2026-10-24 (milestone 2): no problem.** A pending server timestamp does not match `== null` in the local query engine, so an offline delete leaves the live-items query at once and stays gone after a restart with no network. Covered by the test "an offline delete leaves the live list at once, also after a restart" in `e2e/list.spec.ts`.
 3. **Null `updatedAt`.** Reading snapshots with `{ serverTimestamps: 'estimate' }` gives a local estimate instead of null.
-4. **Emulator API names.** With the current modular SDK the harness uses `connectFirestoreEmulator` and `connectAuthEmulator`, not `useEmulator`.
-5. **"Property 4 reproduces your current bug."** No bug is described and no earlier app exists in this repository.
+4. **Emulator API names.** With the current modular SDK the harness uses `connectFirestoreEmulator` and `connectAuthEmulator`, not `useEmulator`. **Settled (milestone 3):** the harness uses those.
+5. **"Property 4 reproduces your current bug."** No bug is described and no earlier app exists in this repository. Property 4 was written first in milestone 3 and passes; the bug the generated scenarios did find is open question 7.
 
 ## Open questions (added during milestone 2)
 
 6. **Ordering by `createdAt`.** While a write is pending, the local estimate of a `serverTimestamp()` has whole-second precision, so items typed offline within the same second came out in random order. **Decided 2026-10-24:** `createdAt` is set from the phone's clock, strictly increasing within one app session. Items added on different phones are ordered by those phones' clocks, which is close enough for a shopping list. `updatedAt` and `deletedAt` stay `serverTimestamp()`.
+
+## Open questions (added during milestone 3)
+
+7. **A filtered query loses deletes.** With the items query filtered on `deletedAt == null`, this sequence leaves a phone showing a deleted item for good: phone A deletes an item; phone B changes the same item (rename, check, anything) before the delete reaches it. B's write succeeds on the server, but the item no longer matches B's query there, so the server never sends it to B again, and B keeps its own version, not deleted, with `hasPendingWrites` stuck on true. Only a restart of B clears it. Seen against the emulator, both with the persistent and the memory cache, both online and offline; not checked against the production backend, since no project exists yet. **Decided 2026-10-25:** the query has no filter on `deletedAt`; the app filters deleted items itself, reading pending timestamps with `{ serverTimestamps: 'estimate' }` so an offline delete still disappears at once (question 2). The cost is downloading tombstones until the 30-day purge. The same trap applies to any future query that filters on a field phones change, such as `checked` or `categoryId`: filter those on the phone too. Covered by test "3. a delete and a concurrent change on another phone" in `e2e/sync.spec.ts`.
+8. **`enableNetwork()` on a client that is already online.** Against the emulator, this made the SDK (13.1.0) fail an internal assertion and stop syncing. The app never calls it; the harness calls it only on a client that is offline. If a later milestone reacts to the browser's `online` event, keep that rule.
+9. **A re-sent add undid a delete.** Firestore re-sends a write whose confirmation did not arrive, for example when the phone lost signal just after sending it. If another phone deleted or cleared the new item in between, the re-sent add, a full `setDoc` with `deletedAt: null`, brought it back. Found twice by the generated scenarios in a run of 300 (shrunk cases are the "re-sent add" regressions in `e2e/sync.spec.ts`). The mechanism is inferred from those cases; holding the request back to force it did not work, as the emulator drops requests from a closed connection. **Decided 2026-10-25:** an add writes only its own fields (`name`, `normName`, `createdAt`, `updatedAt`, `createdBy`) with `merge: true`; a missing `checked` reads as false and a missing `deletedAt` as live. A re-sent add can still undo a rename made in between, which is rare and harmless.

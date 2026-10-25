@@ -2,7 +2,7 @@
 
 A shared grocery list for three family members that keeps working without signal in the shop. The plan is in [`docs/spec.md`](docs/spec.md); it is built one milestone at a time.
 
-Status: milestone 2 (single-device list) — add, check, uncheck, delete and clear checked, working offline.
+Status: milestone 3 (emulator and harness) — the single-device list, plus generated multi-phone sync tests.
 
 ## Development
 
@@ -22,6 +22,8 @@ npm run dev         # terminal 2: app at http://localhost:5173
 | `npm run lint` | Lint with oxlint |
 | `npm run test:e2e` | Start the Auth and Firestore emulators, build, and run the Playwright tests in `e2e/` |
 | `npm run icons` | Re-render the PNG icons from `public/icon.svg` |
+
+`e2e/sync.spec.ts` checks the sync properties from the spec on three simulated phones over generated scenarios (100 per property by default; set `SYNC_RUNS` for more or fewer).
 
 `e2e/popup.spec.ts` signs in through the real button and the emulator's popup. That popup loads a script from `apis.google.com`, so the test needs access to that host. The other tests sign in through the emulator directly.
 

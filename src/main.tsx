@@ -8,3 +8,7 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// The sync test harness, for e2e/sync.spec.ts. Vite replaces the env value at
+// build time, so a production build drops this import and the harness code.
+if (import.meta.env.VITE_USE_EMULATORS === 'true') void import('./harness')

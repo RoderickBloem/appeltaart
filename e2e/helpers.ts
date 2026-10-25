@@ -17,24 +17,37 @@ export async function signInFresh(page: Page): Promise<string> {
   return uid
 }
 
+export type ServerDoc = { id: string; name: string; normName: string; checked: boolean; deleted: boolean }
+
 /**
- * Reads the user's items straight from the Firestore emulator, bypassing the
- * app and its cache. "Bearer owner" is the emulator's admin credential.
+ * Reads every item of a list straight from the Firestore emulator, tombstones
+ * included, bypassing the app and its cache. "Bearer owner" is the emulator's
+ * admin credential. Sorted by id.
  */
-export async function serverItems(uid: string): Promise<ServerItem[]> {
-  const response = await fetch(`${FIRESTORE}/lists/${uid}/items?pageSize=300`, {
+export async function serverDocs(listId: string): Promise<ServerDoc[]> {
+  const response = await fetch(`${FIRESTORE}/lists/${listId}/items?pageSize=1000`, {
     headers: { Authorization: 'Bearer owner' },
   })
   expect(response.ok).toBe(true)
   const body = (await response.json()) as {
-    documents?: { fields: Record<string, { stringValue?: string; booleanValue?: boolean; nullValue?: null }> }[]
+    documents?: { name: string; fields: Record<string, { stringValue?: string; booleanValue?: boolean; nullValue?: null }> }[]
   }
   return (body.documents ?? [])
-    .map(({ fields }) => ({
+    .map(({ name, fields }) => ({
+      id: name.slice(name.lastIndexOf('/') + 1),
       name: fields.name.stringValue!,
-      checked: fields.checked.booleanValue!,
-      deleted: !('nullValue' in fields.deletedAt),
+      normName: fields.normName.stringValue!,
+      // Missing fields: an item that was never checked or deleted.
+      checked: fields.checked?.booleanValue ?? false,
+      deleted: fields.deletedAt !== undefined && !('nullValue' in fields.deletedAt),
     }))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+}
+
+/** The items of the user's own list (milestone 2: the list id is the uid), by name. */
+export async function serverItems(uid: string): Promise<ServerItem[]> {
+  return (await serverDocs(uid))
+    .map(({ name, checked, deleted }) => ({ name, checked, deleted }))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 

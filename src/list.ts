@@ -9,25 +9,32 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
-  where,
   writeBatch,
+  type DocumentReference,
+  type Firestore,
+  type SnapshotMetadata,
 } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
-import { db } from './firebase'
 
 export type Item = {
   id: string
   name: string
+  normName: string
   checked: boolean
   createdAt: Timestamp
 }
 
-// Milestone 2 has one list per user, stored under the user's uid. Sharing
-// (milestone 4) replaces this with a list found through its members map.
-const listRef = (uid: string) => doc(db, 'lists', uid)
-const itemsRef = (uid: string) => collection(listRef(uid), 'items')
+/**
+ * Every operation takes the list document it acts on, so the test harness can
+ * run the same code against several Firestore clients.
+ */
+export type List = DocumentReference
 
-const MAX_ITEMS = 500
+export const listRef = (db: Firestore, listId: string): List => doc(db, 'lists', listId)
+const itemRef = (list: List, id: string) => doc(list, 'items', id)
+
+// Deleted items count towards this until the tombstone purge removes them.
+const MAX_ITEMS = 2000
 const MAX_BATCH = 500
 
 /** Lower-cased, trimmed, accents folded: "  Äpfel " and "apfel" match. */
@@ -42,12 +49,16 @@ function report(write: Promise<void>) {
   write.catch((e) => console.error('Write failed', e))
 }
 
-/** Creates the user's list document the first time they open the app. */
-export function ensureList(uid: string) {
-  getDoc(listRef(uid))
+/**
+ * Creates the list document the first time a member opens the app. Resolves
+ * once the write is issued, not when the server confirms it.
+ */
+export function ensureList(list: List, members: string[]): Promise<void> {
+  return getDoc(list)
     .then((snapshot) => {
       if (!snapshot.exists()) {
-        report(setDoc(listRef(uid), { name: 'Household', members: { [uid]: true }, createdAt: serverTimestamp() }))
+        const memberMap = Object.fromEntries(members.map((uid) => [uid, true]))
+        report(setDoc(list, { name: 'Household', members: memberMap, createdAt: serverTimestamp() }))
       }
     })
     // Offline with nothing cached: try again on the next start.
@@ -65,55 +76,79 @@ function nextCreatedAt(): Timestamp {
   return Timestamp.fromMillis(lastCreated)
 }
 
-export function addItem(uid: string, createdBy: string, name: string) {
+/**
+ * Returns the new item's id.
+ *
+ * Writes neither `checked` nor `deletedAt`, and merges: a missing `checked`
+ * means unchecked, a missing `deletedAt` means live. Firestore re-sends a
+ * write whose confirmation was lost, for example when the phone lost signal
+ * just after sending it; a full set would then wipe a check or a delete that
+ * another phone made in between (open question 9 in docs/spec.md).
+ */
+export function addItem(list: List, createdBy: string, name: string): string {
+  const ref = doc(collection(list, 'items'))
   report(
-    setDoc(doc(itemsRef(uid)), {
-      name,
-      normName: normalise(name),
-      checked: false,
-      deletedAt: null,
-      createdAt: nextCreatedAt(),
-      updatedAt: serverTimestamp(),
-      createdBy,
-    }),
+    setDoc(
+      ref,
+      { name, normName: normalise(name), createdAt: nextCreatedAt(), updatedAt: serverTimestamp(), createdBy },
+      { merge: true },
+    ),
   )
+  return ref.id
 }
 
-export function setChecked(uid: string, id: string, checked: boolean) {
-  report(updateDoc(doc(itemsRef(uid), id), { checked, updatedAt: serverTimestamp() }))
+export function renameItem(list: List, id: string, name: string) {
+  report(updateDoc(itemRef(list, id), { name, normName: normalise(name), updatedAt: serverTimestamp() }))
 }
 
-export function deleteItem(uid: string, id: string) {
-  report(updateDoc(doc(itemsRef(uid), id), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+export function setChecked(list: List, id: string, checked: boolean) {
+  report(updateDoc(itemRef(list, id), { checked, updatedAt: serverTimestamp() }))
 }
 
-export function clearChecked(uid: string, items: Item[]) {
+export function deleteItem(list: List, id: string) {
+  report(updateDoc(itemRef(list, id), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+}
+
+/** Deletes the checked ones among `items`; returns their ids. */
+export function clearChecked(list: List, items: Item[]): string[] {
   const checked = items.filter((item) => item.checked)
   for (let start = 0; start < checked.length; start += MAX_BATCH) {
-    const batch = writeBatch(db)
+    const batch = writeBatch(list.firestore)
     for (const item of checked.slice(start, start + MAX_BATCH)) {
-      batch.update(doc(itemsRef(uid), item.id), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() })
+      batch.update(itemRef(list, item.id), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() })
     }
     report(batch.commit())
   }
+  return checked.map((item) => item.id)
+}
+
+/**
+ * Listens to the live items, oldest first. Calls back from the cache too, so
+ * a cold start with no network shows the list. Returns the unsubscribe.
+ *
+ * The query includes deleted items and drops them here, rather than filtering
+ * on `deletedAt == null` in the query. With that filter, an item one phone
+ * changed just as another deleted it leaves the server's query result, so the
+ * first phone never hears of the delete and shows the item forever (found by
+ * e2e/sync.spec.ts; see open question 7 in docs/spec.md).
+ */
+export function watchItems(list: List, onItems: (items: Item[], metadata: SnapshotMetadata) => void) {
+  const all = query(collection(list, 'items'), limit(MAX_ITEMS))
+  return onSnapshot(all, { includeMetadataChanges: true }, (snapshot) => {
+    const items = snapshot.docs
+      // 'estimate' makes a pending deletedAt read as a time, not null, so an
+      // item deleted offline disappears at once.
+      .map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }) as Item & { deletedAt?: unknown })
+      .filter((item) => item.deletedAt == null)
+      .map(({ id, name, normName, checked, createdAt }) => ({ id, name, normName, checked: checked === true, createdAt }))
+    items.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis() || a.id.localeCompare(b.id))
+    onItems(items, snapshot.metadata)
+  })
 }
 
 /** The live items, oldest first; `undefined` until the first snapshot. */
-export function useItems(uid: string): Item[] | undefined {
+export function useItems(list: List): Item[] | undefined {
   const [items, setItems] = useState<Item[] | undefined>(undefined)
-
-  useEffect(() => {
-    const live = query(itemsRef(uid), where('deletedAt', '==', null), limit(MAX_ITEMS))
-    // Renders from the cache too, so a cold start with no network shows the list.
-    return onSnapshot(live, (snapshot) => {
-      const next = snapshot.docs.map((d) => {
-        const data = d.data()
-        return { id: d.id, name: data.name, checked: data.checked, createdAt: data.createdAt } as Item
-      })
-      next.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis() || a.id.localeCompare(b.id))
-      setItems(next)
-    })
-  }, [uid])
-
+  useEffect(() => watchItems(list, setItems), [list])
   return items
 }
