@@ -31,7 +31,7 @@ test('a member invites someone by Gmail address, who joins on signing in and can
   await expect(liveItems(b.page)).toHaveText(['Milk'])
   // The invitation is used up, and the panel counts two people.
   await expect(a.page.getByTestId('invites')).not.toContainText(bEmail)
-  await expect(a.page.getByTestId('member-count')).toHaveText('2 people share this list')
+  await expect(a.page.getByTestId('member-count')).toHaveText('2 people in this household')
 
   // The newcomer has the same rights, including inviting.
   const cEmail = freshEmail('cas')

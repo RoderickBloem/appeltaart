@@ -17,6 +17,7 @@ import {
   where,
   writeBatch,
   type DocumentData,
+  type FirestoreError,
   type QueryDocumentSnapshot,
   type DocumentReference,
   type Firestore,
@@ -39,16 +40,32 @@ export type Item = {
 }
 
 /**
- * Every operation takes the list document it acts on, so the test harness can
- * run the same code against several Firestore clients.
+ * The document whose `items` collection holds a list: the household document
+ * for its main list, lists/{householdId}/lists/{id} for the others. Every
+ * operation takes the list it acts on, so the test harness can run the same
+ * code against several Firestore clients.
  */
 export type List = DocumentReference
+
+/**
+ * A household: the people (`members`), their invitations, and what they
+ * have learned about products, shared by all their lists. Stored in `lists/`
+ * because it began as a single list; its own `items` are the main list.
+ */
+export type Household = DocumentReference
+
+/** The id of a household's main list, the one everyone in it sees. */
+export const MAIN_LIST = 'main'
+
+export const listIn = (household: Household, listId: string): List =>
+  listId === MAIN_LIST ? household : doc(household, 'lists', listId)
 
 export const listRef = (db: Firestore, listId: string): List => doc(db, 'lists', listId)
 const itemRef = (list: List, id: string) => doc(list, 'items', id)
 // One document per product the list has ever had, keyed by its normalised
 // name; encoded, since a name may contain a slash.
-const productRef = (list: List, normName: string) => doc(list, 'products', encodeURIComponent(normName))
+const productRef = (household: Household, normName: string) =>
+  doc(household, 'products', encodeURIComponent(normName))
 
 // Deleted items count towards this until the tombstone purge removes them.
 const MAX_ITEMS = 2000
@@ -138,6 +155,7 @@ export function parseEntry(text: string): { name: string; quantity?: string } {
  * `categoryFor` gives it.
  */
 export function enterItem(
+  household: Household,
   list: List,
   uid: string,
   text: string,
@@ -155,34 +173,34 @@ export function enterItem(
     }
     if (Object.keys(change).length > 0) report(updateDoc(itemRef(list, item.id), { ...change, updatedAt: serverTimestamp() }))
   }
-  rememberProduct(list, name)
+  rememberProduct(household, name)
 }
 
 /**
  * Notes that the product was put on the list once more. Never touches its
  * category, which only setCategory() changes.
  */
-export function rememberProduct(list: List, name: string) {
+export function rememberProduct(household: Household, name: string) {
   const normName = normalise(name)
-  report(setDoc(productRef(list, normName), { name, normName, uses: increment(1), lastUsed: serverTimestamp() }, { merge: true }))
+  report(setDoc(productRef(household, normName), { name, normName, uses: increment(1), lastUsed: serverTimestamp() }, { merge: true }))
 }
 
 /**
  * Puts `items` (namesakes, normally one) in a category, and remembers it for
  * the product, so the next time it is typed it lands there by itself.
  */
-export function setCategory(list: List, items: Item[], categoryId: string) {
+export function setCategory(household: Household, list: List, items: Item[], categoryId: string) {
   for (const item of items) report(updateDoc(itemRef(list, item.id), { categoryId, updatedAt: serverTimestamp() }))
   const { name, normName } = items[0]
-  report(setDoc(productRef(list, normName), { name, normName, categoryId }, { merge: true }))
+  report(setDoc(productRef(household, normName), { name, normName, categoryId }, { merge: true }))
 }
 
-/** Every product the list has learned, by normalised name; `undefined` until known. */
-export function useProducts(list: List): Map<string, Product> | undefined {
+/** Every product the household has learned, by normalised name; `undefined` until known. */
+export function useProducts(household: Household): Map<string, Product> | undefined {
   const [products, setProducts] = useState<Map<string, Product> | undefined>(undefined)
   useEffect(
     () =>
-      onSnapshot(collection(list, 'products'), (snapshot) => {
+      onSnapshot(collection(household, 'products'), (snapshot) => {
         const known = new Map<string, Product>()
         for (const d of snapshot.docs) {
           const { name, normName, categoryId, uses } = d.data()
@@ -190,7 +208,7 @@ export function useProducts(list: List): Map<string, Product> | undefined {
         }
         setProducts(known)
       }),
-    [list],
+    [household],
   )
   return products
 }
@@ -235,26 +253,35 @@ export function clearChecked(list: List, items: Item[]): string[] {
  * first phone never hears of the delete and shows the item forever (found by
  * e2e/sync.spec.ts; see open question 7 in docs/spec.md).
  */
-export function watchItems(list: List, onItems: (items: Item[], metadata: SnapshotMetadata) => void) {
+export function watchItems(
+  list: List,
+  onItems: (items: Item[], metadata: SnapshotMetadata) => void,
+  onError?: (error: FirestoreError) => void,
+) {
   const all = query(collection(list, 'items'), limit(MAX_ITEMS))
-  return onSnapshot(all, { includeMetadataChanges: true }, (snapshot) => {
-    const items = snapshot.docs
-      // 'estimate' makes a pending deletedAt read as a time, not null, so an
-      // item deleted offline disappears at once.
-      .map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }) as Item & { deletedAt?: unknown })
-      .filter((item) => item.deletedAt == null)
-      .map(({ id, name, normName, checked, createdAt, categoryId, quantity }) => ({
-        id,
-        name,
-        normName,
-        checked: checked === true,
-        createdAt,
-        categoryId,
-        quantity,
-      }))
-    items.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis() || a.id.localeCompare(b.id))
-    onItems(items, snapshot.metadata)
-  })
+  return onSnapshot(
+    all,
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      const items = snapshot.docs
+        // 'estimate' makes a pending deletedAt read as a time, not null, so an
+        // item deleted offline disappears at once.
+        .map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }) as Item & { deletedAt?: unknown })
+        .filter((item) => item.deletedAt == null)
+        .map(({ id, name, normName, checked, createdAt, categoryId, quantity }) => ({
+          id,
+          name,
+          normName,
+          checked: checked === true,
+          createdAt,
+          categoryId,
+          quantity,
+        }))
+      items.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis() || a.id.localeCompare(b.id))
+      onItems(items, snapshot.metadata)
+    },
+    onError,
+  )
 }
 
 /**
@@ -290,43 +317,45 @@ function join(list: List, uid: string, email: string) {
 }
 
 /**
- * The list to show: among the lists the user is a member of, the one with
- * the most members, then the oldest, so a household list they were invited
- * to wins over the solo list their app made at first sign-in. Items on that
- * solo list stay there.
+ * The household to use: among those the user is a member of, the one with
+ * the most members, then the oldest, so a household they were invited to
+ * wins over the one their app made at first sign-in. Items there stay there.
  */
-function chooseList(lists: QueryDocumentSnapshot<DocumentData>[]): string {
+function chooseHousehold(households: QueryDocumentSnapshot<DocumentData>[]): string {
   const size = (d: QueryDocumentSnapshot<DocumentData>) => Object.keys(d.data().members ?? {}).length
   const created = (d: QueryDocumentSnapshot<DocumentData>) =>
     (d.data({ serverTimestamps: 'estimate' }).createdAt as Timestamp | undefined)?.toMillis() ?? Infinity
-  return [...lists].sort((a, b) => size(b) - size(a) || created(a) - created(b) || a.id.localeCompare(b.id))[0].id
+  return [...households].sort((a, b) => size(b) - size(a) || created(a) - created(b) || a.id.localeCompare(b.id))[0].id
 }
 
 /**
- * The list the user sees, `undefined` until known. Joins any list the user
- * is invited to. Creates the user's own list if the server says they belong
+ * The user's household, `undefined` until known. Joins any household the
+ * user is invited to. Creates the user's own if the server says they belong
  * to none; never from the cache alone, which may simply not know the shared
- * list yet.
+ * one yet.
  */
-export function useMyList(db: Firestore, uid: string, email: string | null): List | undefined {
-  const [list, setList] = useState<List | undefined>(undefined)
+export function useHousehold(db: Firestore, uid: string, email: string | null): Household | undefined {
+  const [household, setHousehold] = useState<Household | undefined>(undefined)
 
   useEffect(() => {
+    let chosen: string | undefined
     const mine = query(collection(db, 'lists'), where(new FieldPath('members', uid), '==', true))
     const stopMine = onSnapshot(mine, { includeMetadataChanges: true }, (snapshot) => {
       if (snapshot.empty) {
         if (!snapshot.metadata.fromCache) void ensureList(listRef(db, uid), [uid])
         return
       }
-      // A list joined but not yet confirmed by the server would refuse the
-      // item listener, which then stops for good; the user's own list never
-      // does (see firestore.rules).
-      const usable = snapshot.docs.filter((d) => d.id === uid || !d.metadata.hasPendingWrites)
+      // A household joined but not yet confirmed by the server would refuse
+      // the item listener; the user's own never does (see firestore.rules).
+      // The one already chosen stays usable through later pending writes,
+      // such as the user's name being recorded in it.
+      const usable = snapshot.docs.filter((d) => d.id === uid || d.id === chosen || !d.metadata.hasPendingWrites)
       if (usable.length === 0) return
-      const id = chooseList(usable)
-      // Keep the same reference while the choice stands, so the items
-      // listener is not restarted on every change to the list document.
-      setList((current) => (current?.id === id ? current : listRef(db, id)))
+      const id = chooseHousehold(usable)
+      chosen = id
+      // Keep the same reference while the choice stands, so the listeners
+      // below it are not restarted on every change to the document.
+      setHousehold((current) => (current?.id === id ? current : listRef(db, id)))
     })
 
     if (!email) return stopMine
@@ -341,31 +370,124 @@ export function useMyList(db: Firestore, uid: string, email: string | null): Lis
     }
   }, [db, uid, email])
 
-  return list
+  return household
 }
 
-export type ListInfo = {
-  members: number
+export type Person = { uid: string; name: string }
+
+const DEFAULT_MAIN_NAME = 'Shopping'
+
+export type HouseholdInfo = {
+  people: Person[]
   /** Pending invitations: the normalised address, and the address as typed. */
   invites: { address: string; typed: string }[]
+  mainListName: string
 }
 
-/** How many people share the list, and who is invited; `undefined` until known. */
-export function useListInfo(list: List): ListInfo | undefined {
-  const [info, setInfo] = useState<ListInfo | undefined>(undefined)
+/** Who is in the household, who is invited, and the main list's name; `undefined` until known. */
+export function useHouseholdInfo(household: Household): HouseholdInfo | undefined {
+  const [info, setInfo] = useState<HouseholdInfo | undefined>(undefined)
   useEffect(
     () =>
-      onSnapshot(list, (snapshot) => {
+      onSnapshot(household, (snapshot) => {
         const data = snapshot.data() ?? {}
         const invites = ((data.invites ?? []) as string[]).map((address) => ({
           address,
           typed: (data.invitedAs?.[address] as string | undefined) ?? address,
         }))
-        setInfo({ members: Object.keys(data.members ?? {}).length, invites })
+        const people = Object.keys(data.members ?? {})
+          .map((uid) => ({ uid, name: (data.memberNames?.[uid] as string | undefined) ?? 'Someone' }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+        setInfo({ people, invites, mainListName: data.mainListName ?? DEFAULT_MAIN_NAME })
       }),
-    [list],
+    [household],
   )
   return info
+}
+
+/** Records the user's name in the household, so others can pick them for a list. */
+export function setMyName(household: Household, uid: string, name: string) {
+  report(updateDoc(household, new FieldPath('memberNames', uid), name))
+}
+
+export type ListEntry = { id: string; name: string; visibleTo: string[] }
+
+const RETRY_MS = 1_500
+
+/**
+ * Runs `listen` and, when it fails, runs it again a few seconds later. The
+ * rules refuse a listener while a document it depends on has not reached
+ * the server yet, such as a list just created, and a refused listener stops.
+ */
+function keepListening(listen: (onError: () => void) => () => void): () => void {
+  let stopped = false
+  let stop = () => {}
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const start = () => {
+    stop = listen(() => {
+      if (!stopped) timer = setTimeout(start, RETRY_MS)
+    })
+  }
+  start()
+  return () => {
+    stopped = true
+    clearTimeout(timer)
+    stop()
+  }
+}
+
+/**
+ * The household's lists the user sees: the main list first, at once, then
+ * the others by name. `complete` is false until the others are known, which
+ * for a new household waits for the server (see keepListening).
+ */
+export function useLists(
+  household: Household,
+  uid: string,
+  info: HouseholdInfo | undefined,
+): { lists: ListEntry[]; complete: boolean } {
+  const [others, setOthers] = useState<ListEntry[] | undefined>(undefined)
+  useEffect(
+    () =>
+      keepListening((onError) =>
+        onSnapshot(
+          query(collection(household, 'lists'), where(new FieldPath('visibleTo', uid), '==', true)),
+          (snapshot) =>
+            setOthers(
+              snapshot.docs
+                .map((d) => ({ id: d.id, name: d.data().name as string, visibleTo: Object.keys(d.data().visibleTo ?? {}) }))
+                .sort((a, b) => a.name.localeCompare(b.name)),
+            ),
+          onError,
+        ),
+      ),
+    [household, uid],
+  )
+  const main = {
+    id: MAIN_LIST,
+    name: info?.mainListName ?? DEFAULT_MAIN_NAME,
+    visibleTo: info?.people.map((p) => p.uid) ?? [uid],
+  }
+  return { lists: [main, ...(others ?? [])], complete: others !== undefined }
+}
+
+/** Creates a list that `visibleTo` see; returns its id. */
+export function createList(household: Household, uid: string, name: string, visibleTo: string[]): string {
+  const ref = doc(collection(household, 'lists'))
+  report(
+    setDoc(ref, {
+      name,
+      visibleTo: Object.fromEntries(visibleTo.map((u) => [u, true])),
+      createdAt: serverTimestamp(),
+      createdBy: uid,
+    }),
+  )
+  return ref.id
+}
+
+/** Shows a list (not the main one) to someone in the household, or stops showing it. */
+export function setVisible(household: Household, listId: string, uid: string, visible: boolean) {
+  report(updateDoc(listIn(household, listId), new FieldPath('visibleTo', uid), visible ? true : deleteField()))
 }
 
 /**
@@ -374,6 +496,12 @@ export function useListInfo(list: List): ListInfo | undefined {
  */
 export function useItems(list: List): { items: Item[] | undefined; pending: boolean } {
   const [state, setState] = useState<{ items: Item[] | undefined; pending: boolean }>({ items: undefined, pending: false })
-  useEffect(() => watchItems(list, (items, metadata) => setState({ items, pending: metadata.hasPendingWrites })), [list])
+  useEffect(
+    () =>
+      keepListening((onError) =>
+        watchItems(list, (items, metadata) => setState({ items, pending: metadata.hasPendingWrites }), onError),
+      ),
+    [list],
+  )
   return state
 }

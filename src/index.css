@@ -293,3 +293,56 @@ input {
   border-radius: 999px;
   font-size: 0.9rem;
 }
+
+/* The list menu takes the title's place. */
+.bar .list-menu {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+  border: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.bar .list-menu span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar .who {
+  margin-left: 0;
+}
+
+.choices button {
+  width: 100%;
+  border: 0;
+  text-align: left;
+}
+
+.choices button[aria-current='true'] {
+  font-weight: 700;
+}
+
+.share fieldset {
+  margin: 4px 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.share fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.share fieldset input {
+  width: 20px;
+  min-height: 20px;
+}

@@ -42,10 +42,10 @@ export const freshEmail = (name = 'user') => `${name}.${crypto.randomUUID().slic
  * Signs in as a user no other test uses (unless `email` is given), so tests that run in parallel never
  * share a list, and waits for the list screen. Returns the user's uid.
  */
-export async function signInFresh(page: Page, email = freshEmail()): Promise<string> {
+export async function signInFresh(page: Page, email = freshEmail(), name = 'Rick Tester'): Promise<string> {
   await page.goto('/')
   await page.evaluate(() => navigator.serviceWorker.ready)
-  const uid = await page.evaluate((email) => window.emulatorSignIn!('Rick Tester', email), email)
+  const uid = await page.evaluate(([name, email]) => window.emulatorSignIn!(name, email), [name, email])
   await expect(page.getByLabel('New item')).toBeVisible()
   return uid
 }
@@ -104,4 +104,19 @@ export const row = (page: Page, name: string) =>
 export async function setCategory(page: Page, name: string, category: string) {
   await page.getByRole('button', { name: `Category of ${name}` }).click()
   await page.getByRole('button', { name: category, exact: true }).click()
+}
+
+/** Opens the list menu and shows the list called `name`. */
+export async function showList(page: Page, name: string) {
+  await page.getByTestId('list-menu').click()
+  await page.getByTestId('lists').getByRole('button', { name, exact: true }).click()
+  await expect(page.getByTestId('list-menu')).toContainText(name)
+}
+
+/** Creates a list from the menu; the app then shows it. */
+export async function createList(page: Page, name: string) {
+  await page.getByTestId('list-menu').click()
+  await page.getByLabel('New list name').fill(name)
+  await page.getByRole('button', { name: 'Create' }).click()
+  await expect(page.getByTestId('list-menu')).toContainText(name)
 }

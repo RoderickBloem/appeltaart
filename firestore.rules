@@ -1,10 +1,17 @@
 rules_version = '2';
 
-// A list is shared by the uids in its `members` map. Every user's app creates
-// lists/{uid} for them on first sign-in. Any member can invite someone by
-// adding their address to `invites`; the invited person's app then adds them
-// to `members` when they sign in with that address. Nobody can add anyone
-// else to `members`, so a list is only ever joined by invitation.
+// A household is a document in `lists/` (the name is historical: it began as
+// a single list). Its `members` map holds the household's uids. Every user's
+// app creates lists/{uid} for them on first sign-in. Any member can invite
+// someone by adding their address to `invites`; the invited person's app then
+// adds them to `members` when they sign in with that address. Nobody can add
+// anyone else to `members`, so a household is only ever joined by invitation.
+//
+// The household's items, at lists/{householdId}/items, are its main list,
+// which every member sees. Further lists are lists/{householdId}/lists/{id},
+// each with its items under it and a `visibleTo` map of the members who see
+// it. Learned products, at lists/{householdId}/products, belong to the
+// household and so are shared by all its lists.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -25,7 +32,7 @@ service cloud.firestore {
       return normaliseEmail(request.auth.token.email);
     }
 
-    match /lists/{listId} {
+    match /lists/{householdId} {
       function isMember() {
         return request.auth.uid in resource.data.members;
       }
@@ -39,18 +46,26 @@ service cloud.firestore {
         return request.resource.data.diff(resource.data).affectedKeys();
       }
 
-      // `resource == null` lets the app ask whether its list exists yet. The
-      // app finds its lists with where('members.<uid>', '==', true) and its
-      // invitations with where('invites', 'array-contains', <own address>).
+      // `memberNames` maps uids to display names; each person sets only their own.
+      function ownNameOnly() {
+        return request.resource.data.get('memberNames', {})
+          .diff(resource.data.get('memberNames', {})).affectedKeys().hasOnly([request.auth.uid]);
+      }
+
+      // `resource == null` lets the app ask whether its household exists yet.
+      // The app finds its households with where('members.<uid>', '==', true)
+      // and its invitations with where('invites', 'array-contains', <own address>).
       allow read: if signedIn() && (resource == null || isMember() || isInvited());
       allow create: if signedIn()
-        && listId == request.auth.uid
+        && householdId == request.auth.uid
         && request.resource.data.members.keys().hasOnly([request.auth.uid])
         && request.resource.data.get('invites', []).size() == 0;
-      // Members may rename the list and invite or withdraw invitations.
-      // `invites` holds normalised addresses; `invitedAs` the same as typed.
+      // Members may rename the household and its main list, invite or
+      // withdraw invitations, and set their own name. `invites` holds
+      // normalised addresses; `invitedAs` the same as typed.
       allow update: if signedIn() && isMember()
-        && changes().hasOnly(['name', 'invites', 'invitedAs'])
+        && changes().hasOnly(['name', 'mainListName', 'invites', 'invitedAs', 'memberNames'])
+        && ownNameOnly()
         && request.resource.data.get('invites', []) is list
         && request.resource.data.get('invites', []).size() <= 50;
       // An invited person joins: adds exactly themselves to `members` and
@@ -61,24 +76,55 @@ service cloud.firestore {
         && request.resource.data.members[request.auth.uid] == true
         && request.resource.data.invites.toSet() == resource.data.invites.toSet().difference([myEmail()].toSet());
 
-      // The owner is let in by uid, without reading the list document: the
-      // app starts its item listener and writes before that document reaches
-      // the server, and a rule that needs it would reject them. No client
-      // deletes an item outright; a delete sets `deletedAt`, and tombstones
-      // are purged with admin rights.
-      function canUseList() {
-        return signedIn()
-          && (listId == request.auth.uid
-            || request.auth.uid in get(/databases/$(database)/documents/lists/$(listId)).data.members);
+      function household() {
+        return get(/databases/$(database)/documents/lists/$(householdId)).data;
       }
 
+      function inHousehold() {
+        return signedIn() && request.auth.uid in household().members;
+      }
+
+      // The owner is let in by uid, without reading the household document:
+      // the app starts its item listener and writes before that document
+      // reaches the server, and a rule that needs it would reject them.
+      function canUseHousehold() {
+        return signedIn() && (householdId == request.auth.uid || inHousehold());
+      }
+
+      // The main list. No client deletes an item outright; a delete sets
+      // `deletedAt`, and tombstones are purged with admin rights.
       match /items/{itemId} {
-        allow read, create, update: if canUseList();
+        allow read, create, update: if canUseHousehold();
       }
 
-      // What the list has learned about each product, such as its category.
+      // What the household has learned about each product, such as its category.
       match /products/{productId} {
-        allow read, create, update: if canUseList();
+        allow read, create, update: if canUseHousehold();
+      }
+
+      match /lists/{listId} {
+        // Who sees a list: members of the household only, always including
+        // the person making the change, so nobody locks themselves out.
+        function validVisibleTo() {
+          let visibleTo = request.resource.data.visibleTo;
+          return visibleTo.keys().hasOnly(household().members.keys())
+            && visibleTo[request.auth.uid] == true;
+        }
+
+        // The app lists them with where('visibleTo.<uid>', '==', true).
+        allow read: if inHousehold() && request.auth.uid in resource.data.visibleTo;
+        allow create: if inHousehold()
+          && request.resource.data.keys().hasOnly(['name', 'visibleTo', 'createdAt', 'createdBy'])
+          && validVisibleTo();
+        allow update: if inHousehold()
+          && request.auth.uid in resource.data.visibleTo
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'visibleTo'])
+          && validVisibleTo();
+
+        match /items/{itemId} {
+          allow read, create, update: if inHousehold()
+            && request.auth.uid in get(/databases/$(database)/documents/lists/$(householdId)/lists/$(listId)).data.visibleTo;
+        }
       }
     }
   }

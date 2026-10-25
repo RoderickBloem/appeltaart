@@ -11,14 +11,23 @@ import {
   restoreItems,
   setCategory,
   setChecked,
-  useItems,
-  useListInfo,
-  useMyList,
-  useProducts,
+  createList,
+  listIn,
+  MAIN_LIST,
   parseEntry,
+  setMyName,
+  setVisible,
+  useHousehold,
+  useHouseholdInfo,
+  useItems,
+  useLists,
+  useProducts,
   withdrawInvite,
+  type Household,
+  type HouseholdInfo,
   type Item,
   type List,
+  type ListEntry,
 } from './list'
 
 /**
@@ -54,52 +63,185 @@ function useWakeLock() {
 
 export function ShoppingList({ user }: { user: User }) {
   // Only a verified address can be invited, so only that one is looked up.
-  const list = useMyList(db, user.uid, user.emailVerified ? user.email : null)
-  const [sharing, setSharing] = useState(false)
+  const household = useHousehold(db, user.uid, user.emailVerified ? user.email : null)
   useWakeLock()
+  // Nothing to show until the household is known; from the cache that is at once.
+  return household ? <HouseholdScreen key={household.id} household={household} user={user} /> : <main className="screen" />
+}
+
+const LAST_LIST = 'appeltaart:list'
+
+/** The list this phone showed last; a list that is gone falls back to the main one. */
+function useLastList(): [string, (id: string) => void] {
+  const [listId, setListId] = useState(() => {
+    try {
+      return localStorage.getItem(LAST_LIST) ?? MAIN_LIST
+    } catch {
+      return MAIN_LIST
+    }
+  })
+  const choose = (id: string) => {
+    setListId(id)
+    try {
+      localStorage.setItem(LAST_LIST, id)
+    } catch {
+      // Private mode: the choice lasts until the app closes.
+    }
+  }
+  return [listId, choose]
+}
+
+function HouseholdScreen({ household, user }: { household: Household; user: User }) {
+  const info = useHouseholdInfo(household)
+  const { lists, complete } = useLists(household, user.uid, info)
+  const [listId, setListId] = useLastList()
+  const [panel, setPanel] = useState<'lists' | 'share' | null>(null)
+  const name = user.displayName ?? user.email ?? 'Someone'
+
+  // Puts the user's name in the household, so others can pick them for a list.
+  useEffect(() => {
+    if (info && !info.people.some((p) => p.uid === user.uid && p.name === name)) setMyName(household, user.uid, name)
+  }, [info, household, user.uid, name])
+
+  // A remembered list that is gone falls back to the main list, but only once
+  // all lists are known: until then it may simply not have arrived.
+  const current = lists.find((l) => l.id === listId) ?? (complete ? lists[0] : undefined)
+  const toggle = (which: 'lists' | 'share') => setPanel(panel === which ? null : which)
 
   return (
     <main className="screen">
       <header className="bar">
-        <h1>Appeltaart</h1>
+        <button
+          className="list-menu"
+          data-testid="list-menu"
+          aria-expanded={panel === 'lists'}
+          disabled={!current}
+          onClick={() => toggle('lists')}
+        >
+          <span>{current?.name ?? 'Appeltaart'}</span> ▾
+        </button>
         <span className="who" data-testid="user-name">
-          {user.displayName ?? user.email}
+          {name}
         </span>
-        {list && (
-          <button aria-expanded={sharing} onClick={() => setSharing(!sharing)}>
-            Share
-          </button>
-        )}
+        <button aria-expanded={panel === 'share'} onClick={() => toggle('share')}>
+          Share
+        </button>
         <button onClick={() => signOut(auth)}>Sign out</button>
       </header>
-      {list && sharing && <SharePanel list={list} onDone={() => setSharing(false)} />}
-      {/* Nothing to show until the list is known; from the cache that is at once. */}
-      {list && <Items key={list.id} list={list} uid={user.uid} />}
+      {panel === 'share' && <SharePanel household={household} info={info} onDone={() => setPanel(null)} />}
+      {panel === 'lists' && current && info && (
+        <ListsPanel
+          household={household}
+          uid={user.uid}
+          info={info}
+          lists={lists}
+          current={current}
+          onPick={(id) => {
+            setListId(id)
+            setPanel(null)
+          }}
+          onDone={() => setPanel(null)}
+        />
+      )}
+      {current && (
+        <Items key={current.id} household={household} list={listIn(household, current.id)} uid={user.uid} />
+      )}
     </main>
   )
 }
 
-function SharePanel({ list, onDone }: { list: List; onDone: () => void }) {
-  const info = useListInfo(list)
+function ListsPanel({
+  household,
+  uid,
+  info,
+  lists,
+  current,
+  onPick,
+  onDone,
+}: {
+  household: Household
+  uid: string
+  info: HouseholdInfo
+  lists: ListEntry[]
+  current: ListEntry
+  onPick: (id: string) => void
+  onDone: () => void
+}) {
+  const [newName, setNewName] = useState('')
+
+  function create(event: FormEvent) {
+    event.preventDefault()
+    const name = newName.trim()
+    if (!name) return
+    // Everyone in the household sees a new list until someone unticks them.
+    onPick(createList(household, uid, name, info.people.map((p) => p.uid)))
+    setNewName('')
+  }
+
+  return (
+    <section className="share" data-testid="lists">
+      <ul className="choices">
+        {lists.map((l) => (
+          <li key={l.id}>
+            <button aria-current={l.id === current.id} onClick={() => onPick(l.id)}>
+              {l.name}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {current.id !== MAIN_LIST && (
+        <fieldset>
+          <legend>Who sees {current.name}</legend>
+          {info.people.map((p) => (
+            <label key={p.uid}>
+              <input
+                type="checkbox"
+                checked={current.visibleTo.includes(p.uid)}
+                // Nobody hides a list from themselves; that would lose it.
+                disabled={p.uid === uid}
+                onChange={(event) => setVisible(household, current.id, p.uid, event.target.checked)}
+              />
+              {p.name}
+            </label>
+          ))}
+        </fieldset>
+      )}
+      <form onSubmit={create}>
+        <input
+          aria-label="New list name"
+          placeholder="New list"
+          value={newName}
+          onChange={(event) => setNewName(event.target.value)}
+          autoComplete="off"
+        />
+        <button className="primary">Create</button>
+      </form>
+      <button onClick={onDone}>Done</button>
+    </section>
+  )
+}
+
+function SharePanel({ household, info, onDone }: { household: Household; info: HouseholdInfo | undefined; onDone: () => void }) {
   const [email, setEmail] = useState('')
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    if (email.includes('@')) invite(list, email)
+    if (email.includes('@')) invite(household, email)
     setEmail('')
   }
 
   return (
     <section className="share">
       <p data-testid="member-count">
-        {info && (info.members === 1 ? 'Only you use this list' : `${info.members} people share this list`)}
+        {info && (info.people.length === 1 ? 'Only you, so far' : `${info.people.length} people in this household`)}
       </p>
+      <p data-testid="people">{info?.people.map((p) => p.name).join(', ')}</p>
       <ul data-testid="invites">
         {info?.invites.map(({ address, typed }) => (
           <li key={address}>
             <span>{typed}</span>
             <span className="muted">invited</span>
-            <button aria-label={`Withdraw invitation for ${typed}`} onClick={() => withdrawInvite(list, address)}>
+            <button aria-label={`Withdraw invitation for ${typed}`} onClick={() => withdrawInvite(household, address)}>
               ×
             </button>
           </li>
@@ -116,7 +258,7 @@ function SharePanel({ list, onDone }: { list: List; onDone: () => void }) {
         />
         <button className="primary">Invite</button>
       </form>
-      <p className="muted">They join when they sign in to Appeltaart with that address.</p>
+      <p className="muted">They join when they sign in to Appeltaart with that address. Each list shows who sees it.</p>
       <button onClick={onDone}>Done</button>
     </section>
   )
@@ -173,10 +315,10 @@ type Toast = { message: string; undo: () => void }
 
 const TOAST_MS = 5_000
 
-function Items({ list, uid }: { list: List; uid: string }) {
+function Items({ household, list, uid }: { household: Household; list: List; uid: string }) {
   const { items, pending } = useItems(list)
   const unsynced = useLasting(pending, UNSYNCED_MS)
-  const products = useProducts(list)
+  const products = useProducts(household)
   const [text, setText] = useState('')
   const input = useRef<HTMLInputElement>(null)
   // The group whose category picker is open.
@@ -190,7 +332,7 @@ function Items({ list, uid }: { list: List; uid: string }) {
   }, [toast])
 
   function enter(entry: string) {
-    enterItem(list, uid, entry, items ?? [], (normName) => categoryFor(products, normName))
+    enterItem(household, list, uid, entry, items ?? [], (normName) => categoryFor(products, normName))
     setText('')
     input.current?.focus()
   }
@@ -226,7 +368,7 @@ function Items({ list, uid }: { list: List; uid: string }) {
   }
 
   function choose(group: Group, categoryId: string) {
-    setCategory(list, group.items, categoryId)
+    setCategory(household, list, group.items, categoryId)
     setPicking(null)
   }
 
