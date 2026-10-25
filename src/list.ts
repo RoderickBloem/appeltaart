@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  FieldPath,
   getDoc,
   limit,
   onSnapshot,
@@ -9,7 +10,10 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
+  where,
   writeBatch,
+  type DocumentData,
+  type QueryDocumentSnapshot,
   type DocumentReference,
   type Firestore,
   type SnapshotMetadata,
@@ -144,6 +148,44 @@ export function watchItems(list: List, onItems: (items: Item[], metadata: Snapsh
     items.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis() || a.id.localeCompare(b.id))
     onItems(items, snapshot.metadata)
   })
+}
+
+/**
+ * The list to show: among the lists the user is a member of, the one with
+ * the most members, then the oldest, so a household list the maintainer
+ * added them to wins over the solo list their app made at first sign-in.
+ * Items on that solo list stay there.
+ */
+function chooseList(lists: QueryDocumentSnapshot<DocumentData>[]): string {
+  const size = (d: QueryDocumentSnapshot<DocumentData>) => Object.keys(d.data().members ?? {}).length
+  const created = (d: QueryDocumentSnapshot<DocumentData>) =>
+    (d.data({ serverTimestamps: 'estimate' }).createdAt as Timestamp | undefined)?.toMillis() ?? Infinity
+  return [...lists].sort((a, b) => size(b) - size(a) || created(a) - created(b) || a.id.localeCompare(b.id))[0].id
+}
+
+/**
+ * The list the user sees, `undefined` until known. Creates the user's own
+ * list if the server says they belong to none; never from the cache alone,
+ * which may simply not know the shared list yet.
+ */
+export function useMyList(db: Firestore, uid: string): List | undefined {
+  const [list, setList] = useState<List | undefined>(undefined)
+
+  useEffect(() => {
+    const mine = query(collection(db, 'lists'), where(new FieldPath('members', uid), '==', true))
+    return onSnapshot(mine, (snapshot) => {
+      if (snapshot.empty) {
+        if (!snapshot.metadata.fromCache) void ensureList(listRef(db, uid), [uid])
+        return
+      }
+      const id = chooseList(snapshot.docs)
+      // Keep the same reference while the choice stands, so the items
+      // listener is not restarted on every change to the list document.
+      setList((current) => (current?.id === id ? current : listRef(db, id)))
+    })
+  }, [db, uid])
+
+  return list
 }
 
 /** The live items, oldest first; `undefined` until the first snapshot. */

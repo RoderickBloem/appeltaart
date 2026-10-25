@@ -7,8 +7,8 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 | 1 | Skeleton | Built and tested in the browser. Deployment set up (`.github/workflows/deploy.yml`); waiting on the maintainer's Firebase project and GitHub settings (README, "Deploying"). |
 | 2 | Single-device list | Built and tested against the emulators (7 tests in `e2e/list.spec.ts`). Not yet tried on a phone. |
 | 3 | Emulator and harness | Built: properties 1–5 green over 100 generated scenarios each (`e2e/sync.spec.ts`), and over 500 in a longer run. Found and fixed two sync bugs (open questions 7 and 9). |
-| 4 | Sharing | Next |
-| 5 | Shopping polish | Not started |
+| 4 | Sharing | Built and tested against the emulators: `e2e/sharing.spec.ts` (three phones, real UI, conflicting offline edits converge) and `e2e/rules.spec.ts`. Not yet tried on phones; needs the Firebase project (milestone 1). |
+| 5 | Shopping polish | Next |
 | 6 | Categories | Not started; only after two weeks of using milestone 5 |
 | 7 | Dictionary | Not started |
 | 8 | Quantities | Not started |
@@ -26,6 +26,9 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 - **2026-10-25 — An add writes neither `checked` nor `deletedAt` (open question 9).** A re-sent add whose first confirmation was lost brought a deleted item back. Missing fields now mean unchecked and live.
 - **2026-10-25 — Harness clients are separate browser contexts.** Three Firestore clients in one page shared the browser's six connections per host and stalled each other's writes, which looked like a sync bug. One context per client is also closer to three phones.
 - **2026-10-25 — The harness takes the next step only once the phone shows the last one.** Otherwise a generated restart could land before a write was saved locally, a force-quit no app can survive.
+- **2026-10-25 — Only the console changes `members` (open question 10).** The rules forbid every client, members included, from changing who is on a list. Tests add members with the emulator's admin credential, the way the maintainer uses the console.
+- **2026-10-25 — A member sees the list with the most members (open question 11).** The solo list made at first sign-in loses to the household list as soon as the maintainer adds them.
+- **2026-10-25 — No hard deletes from clients.** Items are only marked deleted; the purge script uses admin rights.
 
 ## What milestone 2 built
 
@@ -46,8 +49,22 @@ Left for milestone 5, as the build order says: swipe to delete, the undo toast, 
 - `SYNC_RUNS` sets the scenarios per generated property (default 100). With the default, the whole e2e suite takes about 3 minutes.
 - `src/list.ts` gained `renameItem`, `watchItems` (shared by the app and the harness) and takes the list as an argument; `Item` has `normName`.
 
-## Notes for milestone 4
+## What milestone 4 built
 
-- The sync suite already runs under `firestore.rules`: each scenario signs in three new users, phone 0 creates `lists/{its uid}` with only itself in `members` and then adds the other two, and the phones start listening only after that. Milestone 4's rules must keep this sequence working, or the harness must follow the new sharing flow.
-- The app still uses `lists/{uid}`; milestone 4 must find the shared list through `members` instead. A query on `members.<uid> == true` is fine: open question 7 is about a document leaving a query, and a list only leaves it if someone is removed from `members`.
+- `firestore.rules`: members read and write a list's items; nobody can create a list except at `lists/{own uid}` with only themselves as member; no client can change `members` or delete an item outright.
+- `src/list.ts`: `useMyList` listens to the lists the user is a member of (`where('members.<uid>', '==', true)`) and picks one (open question 11); it creates the user's own list only when the server says there is none. `ShoppingList` shows nothing until the list is known, which from the cache is immediate.
+- `e2e/sharing.spec.ts`: a member added by hand switches to the shared list, also after a reload; and the exit test: three phones share a list, go offline, make conflicting edits (check against delete, two checks and a clear, adds on two phones, a force-quit), come back one at a time, and show the same list.
+- `e2e/rules.spec.ts` covers the rules above through the emulator's REST API, including the membership lookup query.
+- The sync harness now shares each scenario's list the same way: phone 0 creates its own list, the test adds the other two with admin rights.
+- README: "Adding a family member", the console steps.
+
+## Notes for milestone 5
+
+- The tombstone purge script is still not written (see below), and the undo toast of milestone 5 is the natural place to also add undelete (`deletedAt: null`).
+- The pending-write indicator can use the `metadata` that `watchItems` already passes to its callback; `useItems` drops it today.
+- Duplicate collapsing groups live items by `normName`, which every item has.
+- Removing a member in the console is untested: their listeners will be refused by the rules, and the app has no handling for that. Add a test if removing members becomes a real operation.
+
+## Still open
+
 - The tombstone purge script (spec, "Operation semantics") is not written yet. The items query's `limit(2000)` counts tombstones; at a few hundred deleted items a month, the limit is reached within a year without it.

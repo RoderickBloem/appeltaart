@@ -1,8 +1,10 @@
 rules_version = '2';
 
-// Milestone 2: each user has one list, lists/{uid}, with only themselves in
-// `members`. Milestone 4 (sharing) generalises this to lists found through
-// their members map.
+// A list is shared by the uids in its `members` map. Every user's app creates
+// lists/{uid} for them on first sign-in; the maintainer shares a list by
+// adding uids to `members` in the Firebase console, which these rules do not
+// govern. Clients can never change `members`, so nobody can let themselves or
+// anyone else in.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -10,19 +12,27 @@ service cloud.firestore {
     }
 
     match /lists/{listId} {
-      // `resource == null` lets the app ask whether its list exists yet.
-      allow read: if signedIn()
-        && (resource == null || request.auth.uid in resource.data.members);
+      function isMember() {
+        return request.auth.uid in resource.data.members;
+      }
+
+      // `resource == null` lets the app ask whether its list exists yet. The
+      // app finds shared lists with where('members.<uid>', '==', true), which
+      // this rule allows only for the caller's own uid.
+      allow read: if signedIn() && (resource == null || isMember());
       allow create: if signedIn()
         && listId == request.auth.uid
         && request.resource.data.members.keys().hasOnly([request.auth.uid]);
-      allow update: if signedIn() && request.auth.uid in resource.data.members;
+      allow update: if signedIn() && isMember()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['members']);
 
       // The owner is let in by uid, without reading the list document: the
       // app starts its item listener and writes before that document reaches
-      // the server, and a rule that needs it would reject them.
+      // the server, and a rule that needs it would reject them. No client
+      // deletes an item outright; a delete sets `deletedAt`, and tombstones
+      // are purged with admin rights.
       match /items/{itemId} {
-        allow read, write: if signedIn()
+        allow read, create, update: if signedIn()
           && (listId == request.auth.uid
             || request.auth.uid in get(/databases/$(database)/documents/lists/$(listId)).data.members);
       }

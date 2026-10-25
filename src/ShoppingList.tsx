@@ -1,17 +1,17 @@
 import type { User } from 'firebase/auth'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { db } from './firebase'
-import { addItem, clearChecked, deleteItem, ensureList, listRef, setChecked, useItems, type Item } from './list'
+import { addItem, clearChecked, deleteItem, setChecked, useItems, useMyList, type Item, type List } from './list'
 
 export function ShoppingList({ user }: { user: User }) {
-  const uid = user.uid
-  // Milestone 2 has one list per user, stored under the user's uid. Sharing
-  // (milestone 4) replaces this with a list found through its members map.
-  const list = useMemo(() => listRef(db, uid), [uid])
+  const list = useMyList(db, user.uid)
+  // Nothing to show until the list is known; from the cache that is at once.
+  return list ? <Items key={list.id} list={list} uid={user.uid} /> : null
+}
+
+function Items({ list, uid }: { list: List; uid: string }) {
   const items = useItems(list)
   const [text, setText] = useState('')
-
-  useEffect(() => void ensureList(list, [uid]), [list, uid])
 
   function submit(event: FormEvent) {
     event.preventDefault()

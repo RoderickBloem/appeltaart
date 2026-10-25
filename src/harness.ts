@@ -18,7 +18,6 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
   terminate,
-  updateDoc,
   waitForPendingWrites,
   type Firestore,
 } from 'firebase/firestore'
@@ -77,10 +76,6 @@ async function until(condition: () => boolean, timeoutMs: number) {
   while (!condition() && Date.now() < deadline) await sleep(10)
 }
 
-function report(write: Promise<void>) {
-  write.catch((e) => console.error('Write failed', e))
-}
-
 function current(): Client {
   if (!client) throw new Error('No client open in this page')
   return client
@@ -115,14 +110,13 @@ async function open(scenario: string, email: string, offline: boolean): Promise<
 }
 
 /**
- * Makes this client's own list, lists/{uid}, shared with `uids`: created with
- * only the owner as member, as the rules require, then the others added.
- * Resolves when the server has both writes.
+ * Creates this client's own list, lists/{uid}, as the app does at first
+ * sign-in, and resolves when the server has it. Sharing it is the test's job,
+ * with admin rights, as the maintainer does in the console.
  */
-async function createList(uids: string[]) {
+async function createList() {
   const { list, db, uid } = current()
   await ensureList(list, [uid])
-  report(updateDoc(list, { members: Object.fromEntries(uids.map((u) => [u, true])) }))
   await waitForPendingWrites(db)
 }
 

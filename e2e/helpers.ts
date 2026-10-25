@@ -2,6 +2,36 @@ import { expect, type Page } from '@playwright/test'
 
 const FIRESTORE = 'http://127.0.0.1:8080/v1/projects/demo-appeltaart/databases/(default)/documents'
 
+/** An unsigned ID token for `uid`; the emulator accepts these. */
+export function tokenFor(uid: string): string {
+  const part = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
+  const now = Math.floor(Date.now() / 1000)
+  return `${part({ alg: 'none', typ: 'JWT' })}.${part({
+    iss: 'https://securetoken.google.com/demo-appeltaart',
+    aud: 'demo-appeltaart',
+    sub: uid,
+    user_id: uid,
+    iat: now,
+    exp: now + 3600,
+    auth_time: now,
+    firebase: { sign_in_provider: 'google.com' },
+  })}.`
+}
+
+/**
+ * Adds `uid` to a list's members with the emulator's admin credential, as
+ * the maintainer does by hand in the Firebase console. Clients may not.
+ */
+export async function addMember(listId: string, uid: string) {
+  const mask = encodeURIComponent(`members.\`${uid}\``)
+  const response = await fetch(`${FIRESTORE}/lists/${listId}?updateMask.fieldPaths=${mask}`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: { members: { mapValue: { fields: { [uid]: { booleanValue: true } } } } } }),
+  })
+  expect(response.ok, await response.text()).toBe(true)
+}
+
 export type ServerItem = { name: string; checked: boolean; deleted: boolean }
 
 /**

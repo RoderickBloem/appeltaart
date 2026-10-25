@@ -2,7 +2,7 @@
 
 A shared grocery list for three family members that keeps working without signal in the shop. The plan is in [`docs/spec.md`](docs/spec.md); it is built one milestone at a time.
 
-Status: milestone 3 (emulator and harness) — the single-device list, plus generated multi-phone sync tests.
+Status: milestone 4 (sharing) — one list shared by the family, working offline, with generated multi-phone sync tests.
 
 ## Development
 
@@ -44,3 +44,14 @@ One-time setup, all in a browser:
 7. Run the workflow. The app is then at `https://<project-id>.web.app`; open it on the phone and use "Add to Home Screen".
 
 The web config the app ships with (API key, app id) is public by design; access is controlled by `firestore.rules`. The service account key is not public: it stays in GitHub's secret store.
+
+## Adding a family member
+
+Sharing is a manual step in the Firebase console; the app cannot change who is on a list.
+
+1. Whoever signs in first owns the household list, `lists/<their uid>`.
+2. The new member installs the app and signs in once. Their app shows an empty list of their own.
+3. In the Firebase console, Authentication > Users, copy the new member's User UID.
+4. Firestore Database > `lists` > the household list's document > the `members` map: add a field named with that uid, type boolean, value `true`.
+
+Within a second the new member's app switches to the household list. Anything they typed before that stays in their own list and is no longer shown.
