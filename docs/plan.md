@@ -94,7 +94,13 @@ Left for milestone 5, as the build order says: swipe to delete, the undo toast, 
 
 From the maintainer, not yet scheduled:
 
-- **Multiple shopping lists** (2026-10-25), each shared with a chosen set of people. What exists already: every list has its own `members` and invitations, and `useMyList` picks one list per user (most members, then oldest; spec, open question 11). Needed: a way to create a list, switch between lists, and choose whom to invite to each; the app then remembers the last list used per phone. Open points: whether categories and learned products are per list (as now) or shared across a person's lists, and what replaces "most members wins" when someone belongs to several lists on purpose.
+- **Multiple shopping lists** (2026-10-25), each shared with a chosen set of people. Design decided by the maintainer:
+  - **One fixed group of users**, the household. Invitations go in one place: inviting someone adds them to the household, not to a single list.
+  - **Per list, pick who sees it**, from the household's members.
+  - **A menu picks which list you see.** The app remembers the last list used on each phone.
+  - **Categories and learned products are shared between lists**: they belong to the household, not to a list.
+
+  This moves `members`, `invites` and `products` from the list to a household document (for example `households/{id}` with `lists/` and `products/` under it), and gives each list its own `visibleTo` subset; the rules then check household membership plus `visibleTo` for items. The existing list, `lists/{uid}` of the maintainer, needs a one-off migration into the household. Replaces "most members wins" (spec, open question 11).
 - **A seed list from the maintainer's supermarket** (2026-10-25). The maintainer will provide product names and categories; they replace or extend `src/seed.ts`, possibly in another language, and may change the category order in `src/categories.ts` to match that shop.
 
 ## Still open
