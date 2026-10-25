@@ -7,11 +7,11 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 | 1 | Skeleton | Done. Deployed to https://appeltaart-fd1ff.web.app and installed on the maintainer's laptop and phone (2026-10-25). |
 | 2 | Single-device list | Built and tested against the emulators (7 tests in `e2e/list.spec.ts`). Tried on the maintainer's laptop and phone (deploy of `dd981f7`, 2026-10-25). |
 | 3 | Emulator and harness | Built: properties 1–5 green over 100 generated scenarios each (`e2e/sync.spec.ts`), and over 500 in a longer run. Found and fixed two sync bugs (open questions 7 and 9). |
-| 4 | Sharing | Built and tested against the emulators: `e2e/sharing.spec.ts` (three phones, real UI, conflicting offline edits converge; inviting by Gmail address) and `e2e/rules.spec.ts`. Deployed with `837ad06`; not yet tried on phones. |
-| 5 | Shopping polish | Built: undo toast, "Not synced", wake lock, duplicates as one row (`e2e/polish.spec.ts`). Not deployed. |
-| 6 | Categories | Built early, at the maintainer's request: eight fixed categories in shop order, chosen per product (`e2e/categories.spec.ts`). Not deployed. |
+| 4 | Sharing | Built and tested against the emulators: `e2e/sharing.spec.ts` (three phones, real UI, conflicting offline edits converge; inviting by Gmail address) and `e2e/rules.spec.ts`. Deployed with `837ad06`. |
+| 5 | Shopping polish | Built: undo toast, "Not synced", wake lock, duplicates as one row (`e2e/polish.spec.ts`). Deployed with `7b360de`. |
+| 6 | Categories | Built early, at the maintainer's request: eight fixed categories in shop order, chosen per product (`e2e/categories.spec.ts`). Deployed with `7b360de`. |
 | 7 | Dictionary | Learned half built with categories (one document per product); seed list and type-ahead not started. |
-| 8 | Quantities | Built early: free text after a colon (`e2e/quantities.spec.ts`). Not deployed. |
+| 8 | Quantities | Built early: free text after a colon (`e2e/quantities.spec.ts`). Deployed with `7b360de`. |
 
 ## Deployment
 
@@ -19,7 +19,7 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 - `.github/workflows/deploy.yml` deploys hosting and `firestore.rules` from a ref: on a `v*` tag, or by hand (Actions > Deploy > Run workflow). A session can start it with the GitHub tools (`run_workflow`, workflow `deploy.yml`, ref `main`) and read the result from the job log, which ends with the Hosting URL.
 - The workflow reads the repository variable `FIREBASE_PROJECT_ID` and the secret `FIREBASE_SERVICE_ACCOUNT` (service account `github-deploy`, roles Firebase Admin and Service Usage Consumer). Sessions never see the key and need no other Firebase access.
 - Deploy only what the maintainer asked to have deployed: a deploy changes the app on the family's phones.
-- Last deploy: `837ad06` (milestone 4, invitations by Gmail address, compact screen, and their rules), 2026-10-25.
+- Last deploy: `7b360de` (categories, quantities, milestone 5 polish, and the `products` rules), 2026-10-25.
 
 ## Decisions
 
