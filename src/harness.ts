@@ -5,8 +5,8 @@
 // separate phone it has its own IndexedDB and its own network connections.
 // (Several clients in one page exhaust the browser's six connections per host
 // and stall each other's writes.) "Offline" is disableNetwork(); a restart is
-// a page reload followed by open() with the same list, which finds the same
-// IndexedDB.
+// a page reload followed by open() and watch() with the same arguments, which
+// find the same IndexedDB.
 import { deleteApp, initializeApp, type FirebaseApp } from 'firebase/app'
 import { connectAuthEmulator, getAuth, GoogleAuthProvider, signInWithCredential } from 'firebase/auth'
 import {
@@ -18,6 +18,7 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
   terminate,
+  updateDoc,
   waitForPendingWrites,
   type Firestore,
 } from 'firebase/firestore'
@@ -76,18 +77,23 @@ async function until(condition: () => boolean, timeoutMs: number) {
   while (!condition() && Date.now() < deadline) await sleep(10)
 }
 
+function report(write: Promise<void>) {
+  write.catch((e) => console.error('Write failed', e))
+}
+
 function current(): Client {
   if (!client) throw new Error('No client open in this page')
   return client
 }
 
 /**
- * Opens this page's client on `listId`, signed in as `email`, and returns its
- * uid. After a reload, the same arguments find the same IndexedDB, with the
- * user still signed in and any unsent writes still queued.
+ * Opens this page's client for `scenario`, signed in as `email`, and returns
+ * its uid. After a reload, the same arguments find the same IndexedDB, with
+ * the user still signed in and any unsent writes still queued. Call watch()
+ * next.
  */
-async function open(listId: string, email: string, offline: boolean): Promise<string> {
-  const app = initializeApp(mainApp.options, `client-${listId}`)
+async function open(scenario: string, email: string, offline: boolean): Promise<string> {
+  const app = initializeApp(mainApp.options, `client-${scenario}`)
   const auth = getAuth(app)
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
   const db = initializeFirestore(app, {
@@ -103,30 +109,31 @@ async function open(listId: string, email: string, offline: boolean): Promise<st
     const credential = GoogleAuthProvider.credential(JSON.stringify({ sub: email, email, name: email, email_verified: true }))
     await signInWithCredential(auth, credential)
   }
-
-  const opened: Client = {
-    app,
-    db,
-    list: listRef(db, listId),
-    uid: auth.currentUser!.uid,
-    items: [],
-    synced: false,
-    offline,
-    unsubscribe: () => {},
-  }
-  opened.unsubscribe = watchItems(opened.list, (items, metadata) => {
-    opened.items = items
-    opened.synced = !metadata.fromCache && !metadata.hasPendingWrites
-  })
-  client = opened
-  return opened.uid
+  const uid = auth.currentUser!.uid
+  client = { app, db, list: listRef(db, uid), uid, items: [], synced: false, offline, unsubscribe: () => {} }
+  return uid
 }
 
-/** Creates the list document with every client as a member, and waits for the server. */
+/**
+ * Makes this client's own list, lists/{uid}, shared with `uids`: created with
+ * only the owner as member, as the rules require, then the others added.
+ * Resolves when the server has both writes.
+ */
 async function createList(uids: string[]) {
-  const { list, db } = current()
-  await ensureList(list, uids)
+  const { list, db, uid } = current()
+  await ensureList(list, [uid])
+  report(updateDoc(list, { members: Object.fromEntries(uids.map((u) => [u, true])) }))
   await waitForPendingWrites(db)
+}
+
+/** Starts listening to the items of `listId`, as the app's list screen does. */
+function watch(listId: string) {
+  const c = current()
+  c.list = listRef(c.db, listId)
+  c.unsubscribe = watchItems(c.list, (items, metadata) => {
+    c.items = items
+    c.synced = !metadata.fromCache && !metadata.hasPendingWrites
+  })
 }
 
 /** Picks an item the client currently shows, the way a person taps one they can see. */
@@ -227,7 +234,7 @@ async function dispose() {
   await deleteApp(app)
 }
 
-export const harness = { open, createList, apply, setOffline, waitForWrites, look, dispose }
+export const harness = { open, createList, watch, apply, setOffline, waitForWrites, look, dispose }
 
 declare global {
   interface Window {

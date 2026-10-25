@@ -48,6 +48,6 @@ Left for milestone 5, as the build order says: swipe to delete, the undo toast, 
 
 ## Notes for milestone 4
 
-- The harness signs each phone in as its own user and creates the list with all three uids in `members`, so when the security rules arrive the sync suite should pass unchanged; run it with the rules loaded (`firebase.json` → `firestore.rules`).
+- The sync suite already runs under `firestore.rules`: each scenario signs in three new users, phone 0 creates `lists/{its uid}` with only itself in `members` and then adds the other two, and the phones start listening only after that. Milestone 4's rules must keep this sequence working, or the harness must follow the new sharing flow.
 - The app still uses `lists/{uid}`; milestone 4 must find the shared list through `members` instead. A query on `members.<uid> == true` is fine: open question 7 is about a document leaving a query, and a list only leaves it if someone is removed from `members`.
 - The tombstone purge script (spec, "Operation semantics") is not written yet. The items query's `limit(2000)` counts tombstones; at a few hundred deleted items a month, the limit is reached within a year without it.

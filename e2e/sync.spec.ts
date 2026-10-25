@@ -37,9 +37,14 @@ const stepsArb = fc.array(fc.record({ client: clientArb, op: opArb }), { minLeng
 
 type Phone = { page: Page; email: string; offline: boolean }
 
-/** Three phones on a fresh, empty list, all online. */
+/**
+ * Three phones, each signed in as a new user, on a new empty list that phone
+ * 0 owns and shares with the others, all online.
+ */
 class Scenario {
-  readonly listId = `scenario-${crypto.randomUUID()}`
+  readonly id = crypto.randomUUID()
+  /** Phone 0's uid; set by start(). */
+  listId = ''
   /** Ids written by add operations, and by delete and clear operations. */
   readonly added = new Set<string>()
   readonly deleted = new Set<string>()
@@ -47,18 +52,27 @@ class Scenario {
   constructor(readonly phones: Phone[]) {}
 
   static async start(pages: Page[]): Promise<Scenario> {
-    const scenario = new Scenario(pages.map((page, i) => ({ page, email: `harness-${i}@example.com`, offline: false })))
+    const scenario = new Scenario([])
+    scenario.phones.push(...pages.map((page, i) => ({ page, email: `phone-${i}-${scenario.id}@example.com`, offline: false })))
     const uids = await Promise.all(scenario.phones.map((phone) => scenario.open(phone)))
+    scenario.listId = uids[0]
+    // The rules only let members read the items, so the others start
+    // listening once the list is shared with them.
     await pages[0].evaluate((uids) => window.harness!.createList(uids), uids)
+    await Promise.all(scenario.phones.map((phone) => scenario.watch(phone)))
     return scenario
   }
 
   private async open(phone: Phone): Promise<string> {
     await phone.page.evaluate(() => window.harness!.dispose())
     return phone.page.evaluate(
-      ({ listId, email, offline }) => window.harness!.open(listId, email, offline),
-      { listId: this.listId, email: phone.email, offline: phone.offline },
+      ({ id, email, offline }) => window.harness!.open(id, email, offline),
+      { id: this.id, email: phone.email, offline: phone.offline },
     )
+  }
+
+  private watch(phone: Phone) {
+    return phone.page.evaluate((listId) => window.harness!.watch(listId), this.listId)
   }
 
   async run(steps: Step[]) {
@@ -75,6 +89,7 @@ class Scenario {
           await phone.page.reload()
           await phone.page.waitForFunction(() => window.harness !== undefined)
           await this.open(phone)
+          await this.watch(phone)
           break
         case 'pause':
           await phone.page.waitForTimeout(300)
