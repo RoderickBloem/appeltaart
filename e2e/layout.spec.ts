@@ -12,7 +12,7 @@ test('fifteen items fit on a Pixel 9 screen without scrolling', async ({ page })
   await expect(liveItems(page)).toHaveCount(15)
 
   expect(await page.evaluate(() => window.scrollY)).toBe(0)
-  const last = await liveItems(page).last().boundingBox()
+  const last = await page.getByTestId('live-items').getByRole('listitem').last().boundingBox()
   expect(last!.y + last!.height).toBeLessThanOrEqual(860)
   // Rows stay big enough to tap while pushing a trolley.
   expect(last!.height).toBeGreaterThanOrEqual(40)

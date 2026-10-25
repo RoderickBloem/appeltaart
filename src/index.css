@@ -118,9 +118,8 @@ input {
   list-style: none;
 }
 
-.items li {
+.items .row {
   display: flex;
-  border-bottom: 1px solid var(--border);
 }
 
 /* The whole row is the check target. */
@@ -130,6 +129,47 @@ input {
   border-radius: 0;
   padding: 0 4px;
   text-align: left;
+}
+
+/* The category colour, as a bar at the start of the row; tapping it opens
+   the picker. Uncategorised items show an outline. */
+.items .swatch {
+  min-width: 32px;
+  padding: 0;
+  border: 0;
+}
+
+.items .swatch span {
+  display: block;
+  width: 8px;
+  height: 28px;
+  margin: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--cat);
+}
+
+.items [data-category]:not([data-category='']) .swatch span {
+  border-color: var(--cat);
+}
+
+.picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px 0 8px;
+}
+
+.picker button {
+  border: 2px solid var(--cat);
+  border-left-width: 10px;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.picker button[aria-pressed='true'] {
+  background: var(--cat);
+  color: #fff;
 }
 
 .items .delete {

@@ -6,6 +6,7 @@ import {
   doc,
   FieldPath,
   getDoc,
+  increment,
   limit,
   onSnapshot,
   query,
@@ -22,6 +23,7 @@ import {
   type SnapshotMetadata,
 } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
+import { categoryOrder } from './categories'
 
 export type Item = {
   id: string
@@ -29,6 +31,8 @@ export type Item = {
   normName: string
   checked: boolean
   createdAt: Timestamp
+  /** One of CATEGORIES in src/categories.ts; missing when not yet known. */
+  categoryId?: string
 }
 
 /**
@@ -39,6 +43,9 @@ export type List = DocumentReference
 
 export const listRef = (db: Firestore, listId: string): List => doc(db, 'lists', listId)
 const itemRef = (list: List, id: string) => doc(list, 'items', id)
+// One document per product the list has ever had, keyed by its normalised
+// name; encoded, since a name may contain a slash.
+const productRef = (list: List, normName: string) => doc(list, 'products', encodeURIComponent(normName))
 
 // Deleted items count towards this until the tombstone purge removes them.
 const MAX_ITEMS = 2000
@@ -92,16 +99,61 @@ function nextCreatedAt(): Timestamp {
  * just after sending it; a full set would then wipe a check or a delete that
  * another phone made in between (open question 9 in docs/spec.md).
  */
-export function addItem(list: List, createdBy: string, name: string): string {
+export function addItem(list: List, createdBy: string, name: string, categoryId?: string): string {
   const ref = doc(collection(list, 'items'))
+  const normName = normalise(name)
   report(
     setDoc(
       ref,
-      { name, normName: normalise(name), createdAt: nextCreatedAt(), updatedAt: serverTimestamp(), createdBy },
+      {
+        name,
+        normName,
+        createdAt: nextCreatedAt(),
+        updatedAt: serverTimestamp(),
+        createdBy,
+        ...(categoryId && { categoryId }),
+      },
       { merge: true },
     ),
   )
   return ref.id
+}
+
+/**
+ * Notes that the product was put on the list once more. Never touches its
+ * category, which only setCategory() changes.
+ */
+export function rememberProduct(list: List, name: string) {
+  const normName = normalise(name)
+  report(setDoc(productRef(list, normName), { name, normName, uses: increment(1), lastUsed: serverTimestamp() }, { merge: true }))
+}
+
+/**
+ * Puts `items` (namesakes, normally one) in a category, and remembers it for
+ * the product, so the next time it is typed it lands there by itself.
+ */
+export function setCategory(list: List, items: Item[], categoryId: string) {
+  for (const item of items) report(updateDoc(itemRef(list, item.id), { categoryId, updatedAt: serverTimestamp() }))
+  const { name, normName } = items[0]
+  report(setDoc(productRef(list, normName), { name, normName, categoryId }, { merge: true }))
+}
+
+/** Every known product's category, by normalised name; `undefined` until known. */
+export function useProductCategories(list: List): Map<string, string> | undefined {
+  const [categories, setCategories] = useState<Map<string, string> | undefined>(undefined)
+  useEffect(
+    () =>
+      onSnapshot(collection(list, 'products'), (snapshot) => {
+        const known = new Map<string, string>()
+        for (const d of snapshot.docs) {
+          const { normName, categoryId } = d.data()
+          if (categoryId) known.set(normName, categoryId)
+        }
+        setCategories(known)
+      }),
+    [list],
+  )
+  return categories
 }
 
 export function renameItem(list: List, id: string, name: string) {
@@ -130,7 +182,7 @@ export function clearChecked(list: List, items: Item[]): string[] {
 }
 
 /**
- * Listens to the live items, oldest first. Calls back from the cache too, so
+ * Listens to the live items, by category in shop order, then oldest first. Calls back from the cache too, so
  * a cold start with no network shows the list. Returns the unsubscribe.
  *
  * The query includes deleted items and drops them here, rather than filtering
@@ -147,8 +199,21 @@ export function watchItems(list: List, onItems: (items: Item[], metadata: Snapsh
       // item deleted offline disappears at once.
       .map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }) as Item & { deletedAt?: unknown })
       .filter((item) => item.deletedAt == null)
-      .map(({ id, name, normName, checked, createdAt }) => ({ id, name, normName, checked: checked === true, createdAt }))
-    items.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis() || a.id.localeCompare(b.id))
+      .map(({ id, name, normName, checked, createdAt, categoryId }) => ({
+        id,
+        name,
+        normName,
+        checked: checked === true,
+        createdAt,
+        categoryId,
+      }))
+    // Shop order first, then the order they were added in.
+    items.sort(
+      (a, b) =>
+        categoryOrder(a.categoryId) - categoryOrder(b.categoryId) ||
+        a.createdAt.toMillis() - b.createdAt.toMillis() ||
+        a.id.localeCompare(b.id),
+    )
     onItems(items, snapshot.metadata)
   })
 }

@@ -95,3 +95,13 @@ export async function addItems(page: Page, ...names: string[]) {
 /** The item names in each section; tapping one checks or unchecks it. */
 export const liveItems = (page: Page) => page.getByTestId('live-items').getByTestId('item-name')
 export const checkedItems = (page: Page) => page.getByTestId('checked-items').getByTestId('item-name')
+
+/** The row of the item called exactly `name`, live or checked. */
+export const row = (page: Page, name: string) =>
+  page.getByRole('listitem').filter({ has: page.getByTestId('item-name').getByText(name, { exact: true }) })
+
+/** Sets the category of the item called `name` through its colour swatch. */
+export async function setCategory(page: Page, name: string, category: string) {
+  await page.getByRole('button', { name: `Category of ${name}` }).click()
+  await page.getByRole('button', { name: category, exact: true }).click()
+}

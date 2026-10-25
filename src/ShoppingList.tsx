@@ -1,15 +1,20 @@
 import { signOut, type User } from 'firebase/auth'
-import { useState, type FormEvent } from 'react'
+import { useState, type CSSProperties, type FormEvent } from 'react'
+import { CATEGORIES, category } from './categories'
 import { auth, db } from './firebase'
 import {
   addItem,
   clearChecked,
   deleteItem,
   invite,
+  normalise,
+  rememberProduct,
+  setCategory,
   setChecked,
   useItems,
   useListInfo,
   useMyList,
+  useProductCategories,
   withdrawInvite,
   type Item,
   type List,
@@ -86,28 +91,67 @@ function SharePanel({ list, onDone }: { list: List; onDone: () => void }) {
 
 function Items({ list, uid }: { list: List; uid: string }) {
   const items = useItems(list)
+  const known = useProductCategories(list)
   const [text, setText] = useState('')
+  // The item whose category picker is open.
+  const [picking, setPicking] = useState<string | null>(null)
 
   function submit(event: FormEvent) {
     event.preventDefault()
     const name = text.trim()
-    if (name) addItem(list, uid, name)
+    if (name) {
+      addItem(list, uid, name, known?.get(normalise(name)))
+      rememberProduct(list, name)
+    }
     setText('')
   }
 
   const live = items?.filter((item) => !item.checked) ?? []
   const checked = items?.filter((item) => item.checked) ?? []
 
-  const row = (item: Item) => (
-    <li key={item.id}>
-      <button className="item" data-testid="item-name" onClick={() => setChecked(list, item.id, !item.checked)}>
-        {item.name}
-      </button>
-      <button className="delete" aria-label={`Delete ${item.name}`} onClick={() => deleteItem(list, item.id)}>
-        ×
-      </button>
-    </li>
-  )
+  function choose(item: Item, categoryId: string) {
+    setCategory(list, items?.filter((i) => i.normName === item.normName) ?? [item], categoryId)
+    setPicking(null)
+  }
+
+  const row = (item: Item) => {
+    const cat = category(item.categoryId)
+    return (
+      <li key={item.id} data-category={cat?.id ?? ''} style={{ '--cat': cat?.colour ?? 'transparent' } as CSSProperties}>
+        <div className="row">
+          <button
+            className="swatch"
+            aria-label={`Category of ${item.name}`}
+            aria-expanded={picking === item.id}
+            title={cat?.name ?? 'No category'}
+            onClick={() => setPicking(picking === item.id ? null : item.id)}
+          >
+            <span />
+          </button>
+          <button className="item" onClick={() => setChecked(list, item.id, !item.checked)}>
+            <span data-testid="item-name">{item.name}</span>
+          </button>
+          <button className="delete" aria-label={`Delete ${item.name}`} onClick={() => deleteItem(list, item.id)}>
+            ×
+          </button>
+        </div>
+        {picking === item.id && (
+          <div className="picker">
+            {CATEGORIES.map((c) => (
+              <button
+                key={c.id}
+                style={{ '--cat': c.colour } as CSSProperties}
+                aria-pressed={c.id === item.categoryId}
+                onClick={() => choose(item, c.id)}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </li>
+    )
+  }
 
   return (
     <>

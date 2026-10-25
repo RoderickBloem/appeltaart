@@ -66,10 +66,19 @@ service cloud.firestore {
       // the server, and a rule that needs it would reject them. No client
       // deletes an item outright; a delete sets `deletedAt`, and tombstones
       // are purged with admin rights.
-      match /items/{itemId} {
-        allow read, create, update: if signedIn()
+      function canUseList() {
+        return signedIn()
           && (listId == request.auth.uid
             || request.auth.uid in get(/databases/$(database)/documents/lists/$(listId)).data.members);
+      }
+
+      match /items/{itemId} {
+        allow read, create, update: if canUseList();
+      }
+
+      // What the list has learned about each product, such as its category.
+      match /products/{productId} {
+        allow read, create, update: if canUseList();
       }
     }
   }
