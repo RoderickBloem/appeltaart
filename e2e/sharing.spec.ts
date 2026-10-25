@@ -1,15 +1,69 @@
 // Milestone 4's exit test: three phones, one list, conflicting offline edits
 // converging. Each phone is its own browser context running the real app.
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
-import { addItems, addMember, checkedItems, liveItems, signInFresh } from './helpers'
+import { addItems, addMember, checkedItems, freshEmail, liveItems, signInFresh } from './helpers'
 
 type Phone = { context: BrowserContext; page: Page; uid: string }
 
-async function phone(browser: import('@playwright/test').Browser): Promise<Phone> {
+async function phone(browser: import('@playwright/test').Browser, email = freshEmail()): Promise<Phone> {
   const context = await browser.newContext()
   const page = await context.newPage()
-  return { context, page, uid: await signInFresh(page) }
+  return { context, page, uid: await signInFresh(page, email) }
 }
+
+/** Opens the share panel and invites `email`. */
+async function invite(page: Page, email: string) {
+  await page.getByRole('button', { name: 'Share' }).click()
+  await page.getByLabel('Gmail address').fill(email)
+  await page.getByRole('button', { name: 'Invite' }).click()
+}
+
+test('a member invites someone by Gmail address, who joins on signing in and can invite the next', async ({ browser }) => {
+  const a = await phone(browser)
+  await addItems(a.page, 'Milk')
+
+  // Capitals do not matter.
+  const bEmail = freshEmail('bea')
+  await invite(a.page, bEmail.toUpperCase())
+  await expect(a.page.getByTestId('invites')).toContainText(bEmail)
+
+  const b = await phone(browser, bEmail)
+  await expect(liveItems(b.page)).toHaveText(['Milk'])
+  // The invitation is used up, and the panel counts two people.
+  await expect(a.page.getByTestId('invites')).not.toContainText(bEmail)
+  await expect(a.page.getByTestId('member-count')).toHaveText('2 people share this list')
+
+  // The newcomer has the same rights, including inviting.
+  const cEmail = freshEmail('cas')
+  await invite(b.page, cEmail)
+  const c = await phone(browser, cEmail)
+  await expect(liveItems(c.page)).toHaveText(['Milk'])
+  await addItems(c.page, 'Bread')
+  await expect(liveItems(a.page)).toHaveText(['Milk', 'Bread'])
+  await expect(liveItems(b.page)).toHaveText(['Milk', 'Bread'])
+})
+
+test('a Gmail invitation ignores dots and a +suffix, as Gmail does', async ({ browser }) => {
+  const a = await phone(browser)
+  await addItems(a.page, 'Milk')
+  const local = `dora${crypto.randomUUID().slice(0, 8)}`
+  await invite(a.page, `d.o.r.a${local.slice(4)}+shopping@gmail.com`)
+  const b = await phone(browser, `${local}@gmail.com`)
+  await expect(liveItems(b.page)).toHaveText(['Milk'])
+})
+
+test('a withdrawn invitation lets nobody in', async ({ browser }) => {
+  const a = await phone(browser)
+  await addItems(a.page, 'Milk')
+  const bEmail = freshEmail('eve')
+  await invite(a.page, bEmail)
+  await a.page.getByRole('button', { name: `Withdraw invitation for ${bEmail}` }).click()
+  await expect(a.page.getByTestId('invites')).not.toContainText(bEmail)
+
+  const b = await phone(browser, bEmail)
+  await addItems(b.page, 'Own item')
+  await expect(liveItems(b.page)).toHaveText(['Own item'])
+})
 
 const tap = (page: Page, name: string) => page.getByTestId('item-name').filter({ hasText: name }).click()
 

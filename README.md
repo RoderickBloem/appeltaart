@@ -47,11 +47,6 @@ The web config the app ships with (API key, app id) is public by design; access 
 
 ## Adding a family member
 
-Sharing is a manual step in the Firebase console; the app cannot change who is on a list.
+Anyone on the list can add someone: tap **Share**, type their Gmail address and tap **Invite**. When they open the app and sign in with that Google account, they join the list. Until then the address shows as invited, and the × withdraws the invitation. Capitals, dots and a `+suffix` in a Gmail address do not matter.
 
-1. Whoever signs in first owns the household list, `lists/<their uid>`.
-2. The new member installs the app and signs in once. Their app shows an empty list of their own.
-3. In the Firebase console, Authentication > Users, copy the new member's User UID.
-4. Firestore Database > `lists` > the household list's document > the `members` map: add a field named with that uid, type boolean, value `true`.
-
-Within a second the new member's app switches to the household list. Anything they typed before that stays in their own list and is no longer shown.
+Anything the new member typed into the app before joining stays in a list of their own and is no longer shown. Removing someone is done in the Firebase console: Firestore Database > `lists` > the list > `members`, delete their uid.

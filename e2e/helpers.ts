@@ -2,8 +2,8 @@ import { expect, type Page } from '@playwright/test'
 
 const FIRESTORE = 'http://127.0.0.1:8080/v1/projects/demo-appeltaart/databases/(default)/documents'
 
-/** An unsigned ID token for `uid`; the emulator accepts these. */
-export function tokenFor(uid: string): string {
+/** An unsigned ID token for `uid`, optionally with an email; the emulator accepts these. */
+export function tokenFor(uid: string, email?: { address: string; verified: boolean }): string {
   const part = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
   const now = Math.floor(Date.now() / 1000)
   return `${part({ alg: 'none', typ: 'JWT' })}.${part({
@@ -15,6 +15,7 @@ export function tokenFor(uid: string): string {
     exp: now + 3600,
     auth_time: now,
     firebase: { sign_in_provider: 'google.com' },
+    ...(email && { email: email.address, email_verified: email.verified }),
   })}.`
 }
 
@@ -34,12 +35,14 @@ export async function addMember(listId: string, uid: string) {
 
 export type ServerItem = { name: string; checked: boolean; deleted: boolean }
 
+/** An address no other test uses; a Gmail one, since that is what people invite. */
+export const freshEmail = (name = 'user') => `${name}.${crypto.randomUUID().slice(0, 8)}@gmail.com`
+
 /**
- * Signs in as a user no other test uses, so tests that run in parallel never
+ * Signs in as a user no other test uses (unless `email` is given), so tests that run in parallel never
  * share a list, and waits for the list screen. Returns the user's uid.
  */
-export async function signInFresh(page: Page): Promise<string> {
-  const email = `user-${crypto.randomUUID()}@example.com`
+export async function signInFresh(page: Page, email = freshEmail()): Promise<string> {
   await page.goto('/')
   await page.evaluate(() => navigator.serviceWorker.ready)
   const uid = await page.evaluate((email) => window.emulatorSignIn!('Rick Tester', email), email)

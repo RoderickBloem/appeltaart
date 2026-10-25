@@ -1,5 +1,8 @@
 import {
+  arrayRemove,
+  arrayUnion,
   collection,
+  deleteField,
   doc,
   FieldPath,
   getDoc,
@@ -151,10 +154,42 @@ export function watchItems(list: List, onItems: (items: Item[], metadata: Snapsh
 }
 
 /**
+ * Lower case; for Gmail also without dots and +suffix, as Gmail delivers
+ * j.doe+shop@gmail.com to jdoe@gmail.com. Same as normaliseEmail() in
+ * firestore.rules, which checks it.
+ */
+export function normaliseEmail(email: string): string {
+  const lower = email.trim().toLowerCase()
+  const [local, domain, ...rest] = lower.split('@')
+  const gmail = rest.length === 0 && (domain === 'gmail.com' || domain === 'googlemail.com')
+  return gmail ? `${local.split('+')[0].replaceAll('.', '')}@gmail.com` : lower
+}
+
+/**
+ * Invites `email` to the list; their app joins when they sign in with it.
+ * `invites` holds the normalised address, which is what is matched;
+ * `invitedAs` keeps it as typed, for showing.
+ */
+export function invite(list: List, email: string) {
+  const address = normaliseEmail(email)
+  report(updateDoc(list, 'invites', arrayUnion(address), new FieldPath('invitedAs', address), email.trim().toLowerCase()))
+}
+
+/** `address` is the normalised address, as in `invites`. */
+export function withdrawInvite(list: List, address: string) {
+  report(updateDoc(list, 'invites', arrayRemove(address), new FieldPath('invitedAs', address), deleteField()))
+}
+
+/** Joins a list the user is invited to: adds them, uses up the invitation. */
+function join(list: List, uid: string, email: string) {
+  report(updateDoc(list, new FieldPath('members', uid), true, 'invites', arrayRemove(email)))
+}
+
+/**
  * The list to show: among the lists the user is a member of, the one with
- * the most members, then the oldest, so a household list the maintainer
- * added them to wins over the solo list their app made at first sign-in.
- * Items on that solo list stay there.
+ * the most members, then the oldest, so a household list they were invited
+ * to wins over the solo list their app made at first sign-in. Items on that
+ * solo list stay there.
  */
 function chooseList(lists: QueryDocumentSnapshot<DocumentData>[]): string {
   const size = (d: QueryDocumentSnapshot<DocumentData>) => Object.keys(d.data().members ?? {}).length
@@ -164,28 +199,69 @@ function chooseList(lists: QueryDocumentSnapshot<DocumentData>[]): string {
 }
 
 /**
- * The list the user sees, `undefined` until known. Creates the user's own
- * list if the server says they belong to none; never from the cache alone,
- * which may simply not know the shared list yet.
+ * The list the user sees, `undefined` until known. Joins any list the user
+ * is invited to. Creates the user's own list if the server says they belong
+ * to none; never from the cache alone, which may simply not know the shared
+ * list yet.
  */
-export function useMyList(db: Firestore, uid: string): List | undefined {
+export function useMyList(db: Firestore, uid: string, email: string | null): List | undefined {
   const [list, setList] = useState<List | undefined>(undefined)
 
   useEffect(() => {
     const mine = query(collection(db, 'lists'), where(new FieldPath('members', uid), '==', true))
-    return onSnapshot(mine, (snapshot) => {
+    const stopMine = onSnapshot(mine, { includeMetadataChanges: true }, (snapshot) => {
       if (snapshot.empty) {
         if (!snapshot.metadata.fromCache) void ensureList(listRef(db, uid), [uid])
         return
       }
-      const id = chooseList(snapshot.docs)
+      // A list joined but not yet confirmed by the server would refuse the
+      // item listener, which then stops for good; the user's own list never
+      // does (see firestore.rules).
+      const usable = snapshot.docs.filter((d) => d.id === uid || !d.metadata.hasPendingWrites)
+      if (usable.length === 0) return
+      const id = chooseList(usable)
       // Keep the same reference while the choice stands, so the items
       // listener is not restarted on every change to the list document.
       setList((current) => (current?.id === id ? current : listRef(db, id)))
     })
-  }, [db, uid])
+
+    if (!email) return stopMine
+    const address = normaliseEmail(email)
+    const invited = query(collection(db, 'lists'), where('invites', 'array-contains', address))
+    const stopInvited = onSnapshot(invited, (snapshot) => {
+      for (const d of snapshot.docs) if (!d.metadata.hasPendingWrites) join(d.ref, uid, address)
+    })
+    return () => {
+      stopMine()
+      stopInvited()
+    }
+  }, [db, uid, email])
 
   return list
+}
+
+export type ListInfo = {
+  members: number
+  /** Pending invitations: the normalised address, and the address as typed. */
+  invites: { address: string; typed: string }[]
+}
+
+/** How many people share the list, and who is invited; `undefined` until known. */
+export function useListInfo(list: List): ListInfo | undefined {
+  const [info, setInfo] = useState<ListInfo | undefined>(undefined)
+  useEffect(
+    () =>
+      onSnapshot(list, (snapshot) => {
+        const data = snapshot.data() ?? {}
+        const invites = ((data.invites ?? []) as string[]).map((address) => ({
+          address,
+          typed: (data.invitedAs?.[address] as string | undefined) ?? address,
+        }))
+        setInfo({ members: Object.keys(data.members ?? {}).length, invites })
+      }),
+    [list],
+  )
+  return info
 }
 
 /** The live items, oldest first; `undefined` until the first snapshot. */

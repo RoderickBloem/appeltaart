@@ -37,6 +37,8 @@ The list document:
 | --- | --- | --- |
 | `name` | string | "Household" |
 | `members` | map of uid to `true` | Membership test for the security rules |
+| `invites` | array of string | Pending invitations: addresses, normalised (lower case; Gmail without dots and +suffix) |
+| `invitedAs` | map of normalised address to string | The same addresses as typed, for showing |
 | `createdAt` | timestamp | `serverTimestamp()` |
 
 The item document:
@@ -153,7 +155,7 @@ One screen, plus a sign-in screen. Buy Me a Pie's layout is the model: live item
 Two details that matter more than they look:
 
 1. Keep the screen awake while the app is in the foreground, via the Screen Wake Lock API. Shopping with a phone that locks every thirty seconds is the main reason people abandon these apps.
-2. Touch targets of at least 48 pixels, since this is used one-handed while pushing a trolley.
+2. Touch targets of at least 48 pixels, since this is used one-handed while pushing a trolley. **Changed 2026-10-25, at the maintainer's request:** 44 pixels, so that about fifteen items fit on a Pixel 9 (`e2e/layout.spec.ts`).
 
 No settings screen, no list switcher, no categories. Those arrive with the mid-term build.
 
@@ -250,3 +252,7 @@ For Claude Code: hand it this document, then one milestone per session. Ask for 
 
 10. **Who may change `members`.** The sketch above lets any member update the list document, so any member could add anyone. **Decided 2026-10-25:** no client may change `members`; sharing is the manual console step this spec already describes. Members may still update other list fields.
 11. **Which list a member sees.** Every user's app creates `lists/{uid}` at first sign-in, before anyone can add them to the household list, so a member belongs to two lists. **Decided 2026-10-25:** the app shows the list with the most members, then the oldest, then by id; the household list therefore wins as soon as the maintainer adds them, and every phone makes the same choice. Items typed into the solo list before that stay there, unseen. The app creates the solo list only when the server confirms the user belongs to no list, never from the cache alone.
+
+## Open questions (added after milestone 4)
+
+12. **Adding users from the app.** **Decided 2026-10-25 by the maintainer, replacing decision 10:** any member can invite someone from the app by typing their Gmail address (the Share button). All members have the same rights, including inviting. The address goes into the list's `invites`; when the invited person signs in with Google, their app finds the invitation and adds them to `members`. The rules let an invited person, with a verified address that matches, add exactly themselves and remove exactly their own invitation; nobody else can change `members`. Addresses are compared lower-cased, and Gmail addresses without dots or +suffix, in the app and in the rules alike. An emailed code was the alternative; it needs a server to send mail, which the app does not have. A list joined but not yet confirmed by the server is not shown, since the rules would refuse its item listener. Removing a member is still only possible in the console.

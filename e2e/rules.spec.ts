@@ -3,11 +3,13 @@ import { addItems, addMember, liveItems, signInFresh, tokenFor } from './helpers
 
 const DOCUMENTS = 'http://127.0.0.1:8080/v1/projects/demo-appeltaart/databases/(default)/documents'
 
+type Email = { address: string; verified: boolean }
+
 /** A REST call to the Firestore emulator as `uid`, or signed out with null. */
-const as = (uid: string | null, path: string, init: { method?: string; body?: object } = {}) =>
+const as = (uid: string | null, path: string, init: { method?: string; body?: object; email?: Email } = {}) =>
   fetch(`${DOCUMENTS}${path}`, {
     method: init.method ?? 'GET',
-    headers: { ...(uid ? { Authorization: `Bearer ${tokenFor(uid)}` } : {}), 'Content-Type': 'application/json' },
+    headers: { ...(uid ? { Authorization: `Bearer ${tokenFor(uid, init.email)}` } : {}), 'Content-Type': 'application/json' },
     body: init.body && JSON.stringify(init.body),
   })
 
@@ -82,7 +84,7 @@ test('items are never deleted outright, only marked deleted', async ({ page }) =
   expect((await as(member, `/lists/${owner}/items/c`, { method: 'DELETE' })).status).toBe(403)
 })
 
-test('nobody changes the members from the app, not even the owner', async ({ page }) => {
+test('nobody adds anyone to the members directly, not even the owner', async ({ page }) => {
   const member = fresh('member')
   const owner = await ownerWithList(page)
   await addMember(owner, member)
@@ -116,4 +118,58 @@ test('a user can look up the lists they belong to, and no one else’s', async (
   expect(results.flatMap((r) => (r.document ? [r.document.name.split('/').pop()] : []))).toEqual([owner])
 
   expect((await queryLists('stranger', owner)).status).toBe(403)
+})
+
+/** Sets a list's pending invitations, as `uid`. */
+const setInvites = (uid: string, listId: string, emails: string[]) =>
+  as(uid, `/lists/${listId}?updateMask.fieldPaths=invites`, {
+    method: 'PATCH',
+    body: { fields: { invites: { arrayValue: { values: emails.map((e) => ({ stringValue: e })) } } } },
+  })
+
+/** `uid` joins a list: adds `joiner` to members and leaves `invites` as given. */
+const join = (uid: string, email: Email, listId: string, joiner: string, invitesAfter: string[]) =>
+  as(uid, `/lists/${listId}?updateMask.fieldPaths=${encodeURIComponent(`members.\`${joiner}\``)}&updateMask.fieldPaths=invites`, {
+    method: 'PATCH',
+    email,
+    body: {
+      fields: {
+        ...membersField(joiner),
+        invites: { arrayValue: { values: invitesAfter.map((e) => ({ stringValue: e })) } },
+      },
+    },
+  })
+
+test('members invite by address; only the invited person can then join, and only themselves', async ({ page }) => {
+  const owner = await ownerWithList(page)
+  const invitee = fresh('invitee')
+  const address = `${invitee}@gmail.com`
+  const email = { address, verified: true }
+
+  expect((await setInvites('stranger', owner, ['stranger@gmail.com'])).status).toBe(403)
+  expect((await setInvites(owner, owner, [address, 'other@gmail.com'])).status).toBe(200)
+
+  // The invitee can find and read the list, to join it.
+  const found = await as(invitee, ':runQuery', {
+    method: 'POST',
+    email,
+    body: {
+      structuredQuery: {
+        from: [{ collectionId: 'lists' }],
+        where: { fieldFilter: { field: { fieldPath: 'invites' }, op: 'ARRAY_CONTAINS', value: { stringValue: address } } },
+      },
+    },
+  })
+  expect(found.status).toBe(200)
+  expect((await as('stranger', `/lists/${owner}`, { email: { address: 'stranger@gmail.com', verified: true } })).status).toBe(403)
+
+  // Wrong ways to join.
+  expect((await join('stranger', { address: 'stranger@gmail.com', verified: true }, owner, 'stranger', ['other@gmail.com'])).status).toBe(403)
+  expect((await join(invitee, { address, verified: false }, owner, invitee, ['other@gmail.com'])).status).toBe(403)
+  expect((await join(invitee, email, owner, 'friend', ['other@gmail.com'])).status).toBe(403)
+  expect((await join(invitee, email, owner, invitee, [])).status).toBe(403)
+
+  // The right way: add only yourself, and remove only your own invitation.
+  expect((await join(invitee, email, owner, invitee, ['other@gmail.com'])).status).toBe(200)
+  expect((await as(invitee, `/lists/${owner}/items`)).status).toBe(200)
 })
