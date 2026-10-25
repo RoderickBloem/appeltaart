@@ -10,7 +10,7 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 | 4 | Sharing | Built and tested against the emulators: `e2e/sharing.spec.ts` (three phones, real UI, conflicting offline edits converge; inviting by Gmail address) and `e2e/rules.spec.ts`. Deployed with `837ad06`. |
 | 5 | Shopping polish | Built: undo toast, "Not synced", wake lock, duplicates as one row (`e2e/polish.spec.ts`). Deployed with `7b360de`. |
 | 6 | Categories | Built early, at the maintainer's request: eight fixed categories in shop order, chosen per product (`e2e/categories.spec.ts`). Deployed with `7b360de`. |
-| 7 | Dictionary | Built: learned products (with categories), a seed list of 222 groceries, type-ahead suggestions, category filled in automatically (`e2e/dictionary.spec.ts`). Not deployed. |
+| 7 | Dictionary | Built: learned products (with categories), a seed list of 222 groceries, type-ahead suggestions, category filled in automatically (`e2e/dictionary.spec.ts`). Deployed with `dbb690f`. |
 | 8 | Quantities | Built early: free text after a colon (`e2e/quantities.spec.ts`). Deployed with `7b360de`. |
 
 ## Deployment
@@ -19,7 +19,7 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 - `.github/workflows/deploy.yml` deploys hosting and `firestore.rules` from a ref: on a `v*` tag, or by hand (Actions > Deploy > Run workflow). A session can start it with the GitHub tools (`run_workflow`, workflow `deploy.yml`, ref `main`) and read the result from the job log, which ends with the Hosting URL.
 - The workflow reads the repository variable `FIREBASE_PROJECT_ID` and the secret `FIREBASE_SERVICE_ACCOUNT` (service account `github-deploy`, roles Firebase Admin and Service Usage Consumer). Sessions never see the key and need no other Firebase access.
 - Deploy only what the maintainer asked to have deployed: a deploy changes the app on the family's phones.
-- Last deploy: `7b360de` (categories, quantities, milestone 5 polish, and the `products` rules), 2026-10-25.
+- Last deploy: `dbb690f` (milestone 7: seed dictionary and type-ahead), 2026-10-25.
 
 ## Decisions
 
