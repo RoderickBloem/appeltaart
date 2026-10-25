@@ -5,3 +5,4 @@
 - Before declaring a change done, run `npm run build`, `npm run lint` and `npm run test:e2e`, and report the results.
 - Tests run against the Firebase emulators with the demo project `demo-appeltaart`, never against a live project.
 - Where the build order allows, write the test for a feature before the feature.
+- The live Firebase project and how to deploy to it are in `docs/plan.md`, section "Deployment". Deploy only when the maintainer asks, and update "Last deploy" there afterwards.

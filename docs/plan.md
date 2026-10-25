@@ -4,14 +4,22 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 
 | # | Milestone | Status |
 | --- | --- | --- |
-| 1 | Skeleton | Built and tested in the browser. Deployment set up (`.github/workflows/deploy.yml`); waiting on the maintainer's Firebase project and GitHub settings (README, "Deploying"). |
-| 2 | Single-device list | Built and tested against the emulators (7 tests in `e2e/list.spec.ts`). Not yet tried on a phone. |
+| 1 | Skeleton | Done. Deployed to https://appeltaart-fd1ff.web.app and installed on the maintainer's laptop and phone (2026-10-25). |
+| 2 | Single-device list | Built and tested against the emulators (7 tests in `e2e/list.spec.ts`). Tried on the maintainer's laptop and phone (deploy of `dd981f7`, 2026-10-25). |
 | 3 | Emulator and harness | Built: properties 1–5 green over 100 generated scenarios each (`e2e/sync.spec.ts`), and over 500 in a longer run. Found and fixed two sync bugs (open questions 7 and 9). |
-| 4 | Sharing | Built and tested against the emulators: `e2e/sharing.spec.ts` (three phones, real UI, conflicting offline edits converge) and `e2e/rules.spec.ts`. Not yet tried on phones; needs the Firebase project (milestone 1). |
+| 4 | Sharing | Built and tested against the emulators: `e2e/sharing.spec.ts` (three phones, real UI, conflicting offline edits converge) and `e2e/rules.spec.ts`. Not yet deployed or tried on phones. |
 | 5 | Shopping polish | Next |
 | 6 | Categories | Not started; only after two weeks of using milestone 5 |
 | 7 | Dictionary | Not started |
 | 8 | Quantities | Not started |
+
+## Deployment
+
+- Firebase project `appeltaart-fd1ff`; the app is at https://appeltaart-fd1ff.web.app.
+- `.github/workflows/deploy.yml` deploys hosting and `firestore.rules` from a ref: on a `v*` tag, or by hand (Actions > Deploy > Run workflow). A session can start it with the GitHub tools (`run_workflow`, workflow `deploy.yml`, ref `main`) and read the result from the job log, which ends with the Hosting URL.
+- The workflow reads the repository variable `FIREBASE_PROJECT_ID` and the secret `FIREBASE_SERVICE_ACCOUNT` (service account `github-deploy`, roles Firebase Admin and Service Usage Consumer). Sessions never see the key and need no other Firebase access.
+- Deploy only what the maintainer asked to have deployed: a deploy changes the app on the family's phones.
+- Last deploy: `dd981f7` (milestones 2–3, milestone 2's rules), 2026-10-25.
 
 ## Decisions
 
