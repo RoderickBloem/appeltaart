@@ -33,6 +33,8 @@ export type Item = {
   createdAt: Timestamp
   /** One of CATEGORIES in src/categories.ts; missing when not yet known. */
   categoryId?: string
+  /** Free text: "6", "ripe", "2 kg". */
+  quantity?: string
 }
 
 /**
@@ -99,7 +101,7 @@ function nextCreatedAt(): Timestamp {
  * just after sending it; a full set would then wipe a check or a delete that
  * another phone made in between (open question 9 in docs/spec.md).
  */
-export function addItem(list: List, createdBy: string, name: string, categoryId?: string): string {
+export function addItem(list: List, createdBy: string, name: string, categoryId?: string, quantity?: string): string {
   const ref = doc(collection(list, 'items'))
   const normName = normalise(name)
   report(
@@ -112,11 +114,44 @@ export function addItem(list: List, createdBy: string, name: string, categoryId?
         updatedAt: serverTimestamp(),
         createdBy,
         ...(categoryId && { categoryId }),
+        ...(quantity && { quantity }),
       },
       { merge: true },
     ),
   )
   return ref.id
+}
+
+/**
+ * Splits what was typed into a name and a quantity: "Tomatoes: 6" or
+ * "Avocados: ripe". `quantity` is undefined without a colon, and empty with
+ * nothing after it.
+ */
+export function parseEntry(text: string): { name: string; quantity?: string } {
+  const colon = text.indexOf(':')
+  if (colon < 0) return { name: text.trim() }
+  return { name: text.slice(0, colon).trim(), quantity: text.slice(colon + 1).trim() }
+}
+
+/**
+ * What typing `text` into the list does. A product already on the list,
+ * checked or not, is put back unchecked and given the new quantity, if one
+ * was typed, rather than added twice. A new one is added in the category the
+ * list remembers for it.
+ */
+export function enterItem(list: List, uid: string, text: string, items: Item[], known: Map<string, string> | undefined) {
+  const { name, quantity } = parseEntry(text)
+  if (!name) return
+  const namesakes = items.filter((item) => item.normName === normalise(name))
+  if (namesakes.length === 0) addItem(list, uid, name, known?.get(normalise(name)), quantity)
+  for (const item of namesakes) {
+    const change = {
+      ...(item.checked && { checked: false }),
+      ...(quantity !== undefined && quantity !== (item.quantity ?? '') && { quantity: quantity || deleteField() }),
+    }
+    if (Object.keys(change).length > 0) report(updateDoc(itemRef(list, item.id), { ...change, updatedAt: serverTimestamp() }))
+  }
+  rememberProduct(list, name)
 }
 
 /**
@@ -199,13 +234,14 @@ export function watchItems(list: List, onItems: (items: Item[], metadata: Snapsh
       // item deleted offline disappears at once.
       .map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }) as Item & { deletedAt?: unknown })
       .filter((item) => item.deletedAt == null)
-      .map(({ id, name, normName, checked, createdAt, categoryId }) => ({
+      .map(({ id, name, normName, checked, createdAt, categoryId, quantity }) => ({
         id,
         name,
         normName,
         checked: checked === true,
         createdAt,
         categoryId,
+        quantity,
       }))
     // Shop order first, then the order they were added in.
     items.sort(

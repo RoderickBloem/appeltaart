@@ -3,12 +3,10 @@ import { useState, type CSSProperties, type FormEvent } from 'react'
 import { CATEGORIES, category } from './categories'
 import { auth, db } from './firebase'
 import {
-  addItem,
   clearChecked,
   deleteItem,
+  enterItem,
   invite,
-  normalise,
-  rememberProduct,
   setCategory,
   setChecked,
   useItems,
@@ -98,11 +96,7 @@ function Items({ list, uid }: { list: List; uid: string }) {
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    const name = text.trim()
-    if (name) {
-      addItem(list, uid, name, known?.get(normalise(name)))
-      rememberProduct(list, name)
-    }
+    enterItem(list, uid, text, items ?? [], known)
     setText('')
   }
 
@@ -130,6 +124,11 @@ function Items({ list, uid }: { list: List; uid: string }) {
           </button>
           <button className="item" onClick={() => setChecked(list, item.id, !item.checked)}>
             <span data-testid="item-name">{item.name}</span>
+            {item.quantity && (
+              <span className="quantity" data-testid="item-quantity">
+                {item.quantity}
+              </span>
+            )}
           </button>
           <button className="delete" aria-label={`Delete ${item.name}`} onClick={() => deleteItem(list, item.id)}>
             ×
@@ -159,7 +158,7 @@ function Items({ list, uid }: { list: List; uid: string }) {
       <form className="add" onSubmit={submit}>
         <input
           aria-label="New item"
-          placeholder="Add an item"
+          placeholder="Add an item, or item: amount"
           value={text}
           onChange={(event) => setText(event.target.value)}
           autoComplete="off"

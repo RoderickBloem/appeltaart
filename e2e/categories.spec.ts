@@ -11,6 +11,7 @@ test('a product remembers its category: typed again later, it lands in the same 
 
   // Next week: bought, cleared, and typed again in different capitals.
   await page.getByRole('button', { name: 'Delete Tomatoes' }).click()
+  await expect(row(page, 'Tomatoes')).toHaveCount(0)
   await addItems(page, 'tomatoes')
   await expect(row(page, 'tomatoes')).toHaveAttribute('data-category', 'produce')
 })
@@ -37,6 +38,7 @@ test('a category set on one phone is used on the other', async ({ browser }) => 
   await addItems(a, 'Tomatoes')
   await setCategory(a, 'Tomatoes', 'Fruit & vegetables')
   await a.getByRole('button', { name: 'Delete Tomatoes' }).click()
+  await expect(row(a, 'Tomatoes')).toHaveCount(0)
   await expect(liveItems(b)).toHaveText(['Bread'])
 
   await addItems(b, 'Tomatoes')
@@ -51,6 +53,7 @@ test('a category changed again is remembered as changed', async ({ page }) => {
   await setCategory(page, 'Milk', 'Drinks')
   await expect(row(page, 'Milk')).toHaveAttribute('data-category', 'drinks')
   await page.getByRole('button', { name: 'Delete Milk' }).click()
+  await expect(row(page, 'Milk')).toHaveCount(0)
   await addItems(page, 'milk')
   await expect(row(page, 'milk')).toHaveAttribute('data-category', 'drinks')
 })
