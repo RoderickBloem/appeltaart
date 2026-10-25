@@ -23,7 +23,6 @@ import {
   type SnapshotMetadata,
 } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
-import { categoryOrder } from './categories'
 
 export type Item = {
   id: string
@@ -203,6 +202,11 @@ export function deleteItem(list: List, id: string) {
   report(updateDoc(itemRef(list, id), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
 }
 
+/** Brings deleted items back: the undo of a delete or a clear. */
+export function restoreItems(list: List, ids: string[]) {
+  for (const id of ids) report(updateDoc(itemRef(list, id), { deletedAt: null, updatedAt: serverTimestamp() }))
+}
+
 /** Deletes the checked ones among `items`; returns their ids. */
 export function clearChecked(list: List, items: Item[]): string[] {
   const checked = items.filter((item) => item.checked)
@@ -217,7 +221,7 @@ export function clearChecked(list: List, items: Item[]): string[] {
 }
 
 /**
- * Listens to the live items, by category in shop order, then oldest first. Calls back from the cache too, so
+ * Listens to the live items, oldest first. Calls back from the cache too, so
  * a cold start with no network shows the list. Returns the unsubscribe.
  *
  * The query includes deleted items and drops them here, rather than filtering
@@ -243,13 +247,7 @@ export function watchItems(list: List, onItems: (items: Item[], metadata: Snapsh
         categoryId,
         quantity,
       }))
-    // Shop order first, then the order they were added in.
-    items.sort(
-      (a, b) =>
-        categoryOrder(a.categoryId) - categoryOrder(b.categoryId) ||
-        a.createdAt.toMillis() - b.createdAt.toMillis() ||
-        a.id.localeCompare(b.id),
-    )
+    items.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis() || a.id.localeCompare(b.id))
     onItems(items, snapshot.metadata)
   })
 }
@@ -365,9 +363,12 @@ export function useListInfo(list: List): ListInfo | undefined {
   return info
 }
 
-/** The live items, oldest first; `undefined` until the first snapshot. */
-export function useItems(list: List): Item[] | undefined {
-  const [items, setItems] = useState<Item[] | undefined>(undefined)
-  useEffect(() => watchItems(list, setItems), [list])
-  return items
+/**
+ * The live items, in shop order; `undefined` until the first snapshot. And
+ * whether some change has not reached the server yet.
+ */
+export function useItems(list: List): { items: Item[] | undefined; pending: boolean } {
+  const [state, setState] = useState<{ items: Item[] | undefined; pending: boolean }>({ items: undefined, pending: false })
+  useEffect(() => watchItems(list, (items, metadata) => setState({ items, pending: metadata.hasPendingWrites })), [list])
+  return state
 }

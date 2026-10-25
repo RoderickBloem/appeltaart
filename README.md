@@ -2,7 +2,7 @@
 
 A shared grocery list for three family members that keeps working without signal in the shop. The plan is in [`docs/spec.md`](docs/spec.md); it is built one milestone at a time.
 
-Status: milestone 4 (sharing) — one list shared by the family, working offline, with generated multi-phone sync tests.
+Status: milestones 1–5 built, plus categories and quantities. Type `tomatoes: 6` for a quantity; tap the colour bar at the start of a row to choose a category, which the list remembers for that product.
 
 ## Development
 

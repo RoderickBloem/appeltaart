@@ -8,10 +8,10 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 | 2 | Single-device list | Built and tested against the emulators (7 tests in `e2e/list.spec.ts`). Tried on the maintainer's laptop and phone (deploy of `dd981f7`, 2026-10-25). |
 | 3 | Emulator and harness | Built: properties 1–5 green over 100 generated scenarios each (`e2e/sync.spec.ts`), and over 500 in a longer run. Found and fixed two sync bugs (open questions 7 and 9). |
 | 4 | Sharing | Built and tested against the emulators: `e2e/sharing.spec.ts` (three phones, real UI, conflicting offline edits converge; inviting by Gmail address) and `e2e/rules.spec.ts`. Deployed with `837ad06`; not yet tried on phones. |
-| 5 | Shopping polish | Next |
-| 6 | Categories | Not started; only after two weeks of using milestone 5 |
-| 7 | Dictionary | Not started |
-| 8 | Quantities | Not started |
+| 5 | Shopping polish | Built: undo toast, "Not synced", wake lock, duplicates as one row (`e2e/polish.spec.ts`). Not deployed. |
+| 6 | Categories | Built early, at the maintainer's request: eight fixed categories in shop order, chosen per product (`e2e/categories.spec.ts`). Not deployed. |
+| 7 | Dictionary | Learned half built with categories (one document per product); seed list and type-ahead not started. |
+| 8 | Quantities | Built early: free text after a colon (`e2e/quantities.spec.ts`). Not deployed. |
 
 ## Deployment
 
@@ -39,6 +39,7 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 - **2026-10-25 — No hard deletes from clients.** Items are only marked deleted; the purge script uses admin rights.
 - **2026-10-25 — Members invite from the app (open question 12), ahead of milestone 5 at the maintainer's request.** Replaces "only the console changes `members`". Any member invites a Gmail address with the Share button; the invited person joins when they sign in. Tested in `e2e/sharing.spec.ts` and `e2e/rules.spec.ts`.
 - **2026-10-25 — Compact screen, 44 px rows.** At the maintainer's request, fifteen items fit on a Pixel 9 without scrolling (`e2e/layout.spec.ts`, viewport 412 × 860).
+- **2026-10-25 — Categories, quantities and polish before using milestone 5 for two weeks**, at the maintainer's request. Choices in the spec, open questions 13–16: categories fixed in code, products learned one document each, quantity as free text after a colon, no swipe-to-delete.
 
 ## What milestone 2 built
 
@@ -68,12 +69,19 @@ Left for milestone 5, as the build order says: swipe to delete, the undo toast, 
 - The sync harness now shares each scenario's list the same way: phone 0 creates its own list, the test adds the other two with admin rights.
 - README: "Adding a family member", the console steps.
 
-## Notes for milestone 5
+## What categories, quantities and polish built
 
-- The tombstone purge script is still not written (see below), and the undo toast of milestone 5 is the natural place to also add undelete (`deletedAt: null`).
-- The pending-write indicator can use the `metadata` that `watchItems` already passes to its callback; `useItems` drops it today.
-- Duplicate collapsing groups live items by `normName`, which every item has.
-- Removing a member in the console is untested: their listeners will be refused by the rules, and the app has no handling for that. Add a test if removing members becomes a real operation.
+- `src/categories.ts`: the eight categories, colours and shop order.
+- `src/list.ts`: `enterItem` (parses "name: amount", updates a product already on the list, adds a new one in its learned category), `rememberProduct`, `setCategory`, `useProductCategories`, `restoreItems`; `useItems` also reports pending writes.
+- `src/ShoppingList.tsx`: rows grouped by `normName` and sorted by category, a colour bar that opens the category picker, quantity chips, the undo toast, "Not synced", and the wake lock.
+- `firestore.rules`: `products` has the same rules as `items`.
+- Tests: `e2e/categories.spec.ts`, `e2e/quantities.spec.ts`, `e2e/polish.spec.ts`.
+
+## Next
+
+- Use it for a while, as the spec intends after milestone 5, and see what is missing.
+- Candidates: editing categories in the app (names, colours, shop order); the seed dictionary and type-ahead (milestone 7); swipe-to-delete; editing a quantity by tapping its chip.
+- Removing a member in the console is untested: their listeners will be refused by the rules, and the app has no handling for that.
 
 ## Still open
 

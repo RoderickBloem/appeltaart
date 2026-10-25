@@ -52,6 +52,10 @@ The item document:
 | `createdAt` | timestamp | From the phone's clock, not `serverTimestamp()`; orders the list (see open question 6) |
 | `updatedAt` | timestamp | Set on every write |
 | `createdBy` | string | uid, for a later "who added this" |
+| `categoryId` | string, optional | One of the categories in `src/categories.ts`; missing until known |
+| `quantity` | string, optional | Free text after a colon: "6", "ripe", "2 kg" |
+
+What the list has learned about each product is in `lists/{listId}/products/{normName}` (the id URI-encoded): `name`, `normName`, `categoryId`, `uses`, `lastUsed`.
 
 The mid-term fields — `categoryId`, `quantity`, `unit` — are added later without migrating anything, because a missing field reads as undefined and the UI can treat that as the default.
 
@@ -179,6 +183,8 @@ Drive these with fast-check: generate random operation sequences over a small al
 
 ## Mid-term: categories, dictionary, quantities
 
+*As built (2026-10-25), ahead of the order below at the maintainer's request: categories, the learned half of the dictionary, and quantities. Where the build differs from this section, open questions 13–16 say how.*
+
 These are the features that make the app worth using over paper. Each is additive to the MVP schema.
 
 ### Categories ordered by store layout
@@ -256,3 +262,10 @@ For Claude Code: hand it this document, then one milestone per session. Ask for 
 ## Open questions (added after milestone 4)
 
 12. **Adding users from the app.** **Decided 2026-10-25 by the maintainer, replacing decision 10:** any member can invite someone from the app by typing their Gmail address (the Share button). All members have the same rights, including inviting. The address goes into the list's `invites`; when the invited person signs in with Google, their app finds the invitation and adds them to `members`. The rules let an invited person, with a verified address that matches, add exactly themselves and remove exactly their own invitation; nobody else can change `members`. Addresses are compared lower-cased, and Gmail addresses without dots or +suffix, in the app and in the rules alike. An emailed code was the alternative; it needs a server to send mail, which the app does not have. A list joined but not yet confirmed by the server is not shown, since the rules would refuse its item listener. Removing a member is still only possible in the console.
+
+## Open questions (added with categories, quantities and polish)
+
+13. **Categories are fixed in code for now.** Eight categories in shop order (`src/categories.ts`), not a Firestore collection; there is no way yet to rename, recolour or reorder them in the app. Items and products store the category id, so moving the set into Firestore later keeps the data. The category is chosen by tapping the colour bar at the start of a row, rather than by a long-press, which is hard to discover.
+14. **The learned dictionary is one document per product**, `lists/{id}/products/{normName}`, rather than one document per list: concurrent edits of different products never touch the same document, and the rules are the items' rules. Choosing a category for an item stores it for the product; a new item of that product gets it when added. An item without a category of its own shows the product's category, so an item added on a phone that had not yet heard of the category still ends up coloured. The seed dictionary of common groceries is not built.
+15. **Quantities are free text after a colon**, "tomatoes: 6" or "avocados: ripe", as the maintainer asked, rather than a parsed leading number and unit. Typing a product that is already on the list, checked or not, puts it back unchecked and sets the new quantity instead of adding it again; "tomatoes:" with nothing after the colon removes the quantity.
+16. **Shopping polish as built.** Deleting and clearing show an undo toast for five seconds; undo sets `deletedAt` back to null. Swipe-to-delete is not built: the × button stays. "Not synced" appears once a change has waited more than two seconds for the server, so it does not flash on every tap. The screen is kept awake with the Screen Wake Lock API while the app is visible. Items with the same `normName` show as one row, with their quantities joined, and a tap checks or unchecks them all. The lines between rows are gone, at the maintainer's request.
