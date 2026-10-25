@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { signInFresh } from './helpers'
 
 test('the manifest makes the app installable', async ({ page, request }) => {
   await page.goto('/')
@@ -31,9 +32,8 @@ test('a signed-in user sees their name, also after a reload', async ({ page }) =
 })
 
 test('a signed-in user still sees their name when the app starts offline', async ({ page, context }) => {
-  await page.goto('/')
-  await page.evaluate(() => navigator.serviceWorker.ready)
-  await page.evaluate(() => window.emulatorSignIn!('Rick Tester', 'rick@example.com'))
+  // In a household: offline, the app cannot ask whether someone is invited.
+  await signInFresh(page)
   await expect(page.getByTestId('user-name')).toHaveText('Rick Tester')
 
   await context.setOffline(true)

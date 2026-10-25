@@ -12,6 +12,7 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 | 6 | Categories | Built early, at the maintainer's request: eight fixed categories in shop order, chosen per product (`e2e/categories.spec.ts`). Deployed with `7b360de`. |
 | 7 | Dictionary | Built: learned products (with categories), a seed list of 222 groceries, type-ahead suggestions, category filled in automatically (`e2e/dictionary.spec.ts`). Deployed with `dbb690f`. |
 | 8 | Quantities | Built early: free text after a colon (`e2e/quantities.spec.ts`). Deployed with `7b360de`. |
+| – | Multiple lists | Built at the maintainer's request (`e2e/lists.spec.ts`). Not deployed. |
 
 ## Deployment
 
@@ -90,17 +91,23 @@ Left for milestone 5, as the build order says: swipe to delete, the undo toast, 
 - Every milestone in the build order is built. Candidates for later: editing categories in the app (names, colours, shop order); seed names in another language; swipe-to-delete; editing a quantity by tapping its chip.
 - Removing a member in the console is untested: their listeners will be refused by the rules, and the app has no handling for that.
 
+## What multiple lists built (2026-10-25)
+
+At the maintainer's request; design in the spec, open question 18.
+
+- The list name at the top left opens a menu: pick a list, create one, and tick who sees the current one (everyone, at first; you cannot untick yourself). The main list, "Shopping", is everyone's.
+- The phone remembers the last list it showed.
+- Categories and learned products are shared by all lists.
+- Nobody gets in without an invitation (open question 19); someone not invited sees only their name and Sign out.
+- No data moved: the existing document `lists/{uid}` of the maintainer holds the people, invitations and products, its `items` are the main list, and further lists live under it at `lists/{uid}/lists/{id}`.
+- `firestore.rules`: lists are seen and changed only by the people they are visible to; nobody creates the shared document from the app.
+- Tests: `e2e/lists.spec.ts`; the other tests now create each test user's list with admin rights (`createHousehold` in `e2e/helpers.ts`), as the real one already exists.
+- Found on the way: when someone joined, the app recording their name made it briefly fall back to another list document, and after a reload a phone could not confirm that it had no invitation; both fixed.
+
 ## Feature requests
 
 From the maintainer, not yet scheduled:
 
-- **Multiple shopping lists** (2026-10-25), each shared with a chosen set of people. Design decided by the maintainer:
-  - **One fixed group of users**, the household. Invitations go in one place: inviting someone adds them to the household, not to a single list.
-  - **Per list, pick who sees it**, from the household's members.
-  - **A menu picks which list you see.** The app remembers the last list used on each phone.
-  - **Categories and learned products are shared between lists**: they belong to the household, not to a list.
-
-  This moves `members`, `invites` and `products` from the list to a household document (for example `households/{id}` with `lists/` and `products/` under it), and gives each list its own `visibleTo` subset; the rules then check household membership plus `visibleTo` for items. The existing list, `lists/{uid}` of the maintainer, needs a one-off migration into the household. Replaces "most members wins" (spec, open question 11).
 - **A seed list from the maintainer's supermarket** (2026-10-25). The maintainer will provide product names and categories; they replace or extend `src/seed.ts`, possibly in another language, and may change the category order in `src/categories.ts` to match that shop.
 
 ## Still open

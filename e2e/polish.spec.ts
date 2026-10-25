@@ -1,6 +1,6 @@
 // Milestone 5: shopping polish.
 import { expect, test } from '@playwright/test'
-import { addItems, addMember, checkedItems, freshEmail, liveItems, row, serverDocs, signInFresh } from './helpers'
+import { addItems, addMember, checkedItems, freshEmail, liveItems, row, serverDocs, signIn, signInFresh } from './helpers'
 
 test('a delete can be undone from the toast', async ({ page }) => {
   const uid = await signInFresh(page)
@@ -49,7 +49,7 @@ test('"Not synced" shows only while changes have not reached the server', async 
 test('the same product added on two phones shows as one row, and one tap checks both', async ({ browser }) => {
   const [a, b] = await Promise.all([0, 1].map(async () => (await browser.newContext()).newPage()))
   const aUid = await signInFresh(a)
-  const bUid = await signInFresh(b, freshEmail('bo'))
+  const bUid = await signIn(b, freshEmail('bo'))
   await addMember(aUid, bUid)
   await addItems(a, 'Bread')
   await expect(liveItems(b)).toHaveText(['Bread'])

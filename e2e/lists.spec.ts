@@ -10,20 +10,22 @@ import {
   row,
   setCategory,
   showList,
+  signIn,
   signInFresh,
   tokenFor,
 } from './helpers'
 
-async function phone(browser: Browser, name: string) {
+async function phone(browser: Browser, name: string, own = true) {
   const page = await (await browser.newContext()).newPage()
-  const uid = await signInFresh(page, freshEmail(name.toLowerCase()), name)
+  const email = freshEmail(name.toLowerCase())
+  const uid = own ? await signInFresh(page, email, name) : await signIn(page, email, name)
   return { page, uid }
 }
 
-/** Two people in one household: b joins a's, and sees a's main list. */
+/** Two people in one household: Ann's, which Ben is added to. */
 async function household(browser: Browser) {
   const a = await phone(browser, 'Ann')
-  const b = await phone(browser, 'Ben')
+  const b = await phone(browser, 'Ben', false)
   await addMember(a.uid, b.uid)
   await addItems(a.page, 'Bread')
   await expect(liveItems(b.page)).toHaveText(['Bread'])

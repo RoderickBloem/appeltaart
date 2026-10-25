@@ -25,11 +25,15 @@ export function tokenFor(uid: string, email?: { address: string; verified: boole
  */
 export async function addMember(listId: string, uid: string) {
   const mask = encodeURIComponent(`members.\`${uid}\``)
-  const response = await fetch(`${FIRESTORE}/lists/${listId}?updateMask.fieldPaths=${mask}`, {
-    method: 'PATCH',
-    headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: { members: { mapValue: { fields: { [uid]: { booleanValue: true } } } } } }),
-  })
+  const patch = () =>
+    fetch(`${FIRESTORE}/lists/${listId}?updateMask.fieldPaths=${mask}`, {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { members: { mapValue: { fields: { [uid]: { booleanValue: true } } } } } }),
+    })
+  // The emulator answers 409 when the app is writing the same document.
+  let response = await patch()
+  for (let attempt = 0; attempt < 3 && response.status === 409; attempt++) response = await patch()
   expect(response.ok, await response.text()).toBe(true)
 }
 
@@ -39,13 +43,42 @@ export type ServerItem = { name: string; checked: boolean; deleted: boolean }
 export const freshEmail = (name = 'user') => `${name}.${crypto.randomUUID().slice(0, 8)}@gmail.com`
 
 /**
- * Signs in as a user no other test uses (unless `email` is given), so tests that run in parallel never
- * share a list, and waits for the list screen. Returns the user's uid.
+ * Signs in through the emulator and returns the uid. Without an invitation
+ * or a list of their own, the app then shows no list (see signInFresh).
  */
-export async function signInFresh(page: Page, email = freshEmail(), name = 'Rick Tester'): Promise<string> {
+export async function signIn(page: Page, email = freshEmail(), name = 'Rick Tester'): Promise<string> {
   await page.goto('/')
   await page.evaluate(() => navigator.serviceWorker.ready)
-  const uid = await page.evaluate(([name, email]) => window.emulatorSignIn!(name, email), [name, email])
+  return page.evaluate(([name, email]) => window.emulatorSignIn!(name, email), [name, email])
+}
+
+/**
+ * Creates a household of `uid`'s own, with admin rights: the app never
+ * creates one; the real household was made before that rule.
+ */
+export async function createHousehold(uid: string) {
+  const response = await fetch(`${FIRESTORE}/lists?documentId=${uid}`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fields: {
+        name: { stringValue: 'Household' },
+        members: { mapValue: { fields: { [uid]: { booleanValue: true } } } },
+        createdAt: { timestampValue: new Date().toISOString() },
+      },
+    }),
+  })
+  expect(response.ok, await response.text()).toBe(true)
+}
+
+/**
+ * Signs in as a user no other test uses (unless `email` is given), in a
+ * household of their own, so tests that run in parallel never share a list,
+ * and waits for the list screen. Returns the user's uid.
+ */
+export async function signInFresh(page: Page, email = freshEmail(), name = 'Rick Tester'): Promise<string> {
+  const uid = await signIn(page, email, name)
+  await createHousehold(uid)
   await expect(page.getByLabel('New item')).toBeVisible()
   return uid
 }

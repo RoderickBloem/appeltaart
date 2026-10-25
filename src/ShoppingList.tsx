@@ -65,8 +65,18 @@ export function ShoppingList({ user }: { user: User }) {
   // Only a verified address can be invited, so only that one is looked up.
   const household = useHousehold(db, user.uid, user.emailVerified ? user.email : null)
   useWakeLock()
-  // Nothing to show until the household is known; from the cache that is at once.
-  return household ? <HouseholdScreen key={household.id} household={household} user={user} /> : <main className="screen" />
+  if (household) return <HouseholdScreen key={household.id} household={household} user={user} />
+  // Until the list is known; for someone not invited, that is all there is.
+  return (
+    <main className="screen">
+      <header className="bar">
+        <span className="who" data-testid="user-name">
+          {user.displayName ?? user.email}
+        </span>
+        <button onClick={() => signOut(auth)}>Sign out</button>
+      </header>
+    </main>
+  )
 }
 
 const LAST_LIST = 'appeltaart:list'
@@ -98,7 +108,7 @@ function HouseholdScreen({ household, user }: { household: Household; user: User
   const [panel, setPanel] = useState<'lists' | 'share' | null>(null)
   const name = user.displayName ?? user.email ?? 'Someone'
 
-  // Puts the user's name in the household, so others can pick them for a list.
+  // Records the user's name, so others can pick them for a list.
   useEffect(() => {
     if (info && !info.people.some((p) => p.uid === user.uid && p.name === name)) setMyName(household, user.uid, name)
   }, [info, household, user.uid, name])
@@ -173,7 +183,7 @@ function ListsPanel({
     event.preventDefault()
     const name = newName.trim()
     if (!name) return
-    // Everyone in the household sees a new list until someone unticks them.
+    // Everyone sees a new list until someone unticks them.
     onPick(createList(household, uid, name, info.people.map((p) => p.uid)))
     setNewName('')
   }
@@ -233,7 +243,7 @@ function SharePanel({ household, info, onDone }: { household: Household; info: H
   return (
     <section className="share">
       <p data-testid="member-count">
-        {info && (info.people.length === 1 ? 'Only you, so far' : `${info.people.length} people in this household`)}
+        {info && (info.people.length === 1 ? 'Only you, so far' : `${info.people.length} people use these lists`)}
       </p>
       <p data-testid="people">{info?.people.map((p) => p.name).join(', ')}</p>
       <ul data-testid="invites">

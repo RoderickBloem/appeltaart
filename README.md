@@ -47,6 +47,10 @@ The web config the app ships with (API key, app id) is public by design; access 
 
 ## Adding a family member
 
-Anyone on the list can add someone: tap **Share**, type their Gmail address and tap **Invite**. When they open the app and sign in with that Google account, they join the list. Until then the address shows as invited, and the × withdraws the invitation. Capitals, dots and a `+suffix` in a Gmail address do not matter.
+Anyone already using the app can add someone: tap **Share**, type their Gmail address and tap **Invite**. When they open the app and sign in with that Google account, they are in. Until then the address shows as invited, and the × withdraws the invitation. Capitals, dots and a `+suffix` in a Gmail address do not matter. Someone without an invitation sees nothing but their name.
 
-Anything the new member typed into the app before joining stays in a list of their own and is no longer shown. Removing someone is done in the Firebase console: Firestore Database > `lists` > the list > `members`, delete their uid.
+## Several lists
+
+Tap the list name at the top left to switch lists, create one, or tick who sees the list you are on. "Shopping" is everyone's. Categories and what the app learned about products are shared by all lists.
+
+Removing someone is done in the Firebase console: Firestore Database > `lists` > the document with everyone in `members` > `members`, delete their uid.

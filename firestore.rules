@@ -1,11 +1,13 @@
 rules_version = '2';
 
 // A household is a document in `lists/` (the name is historical: it began as
-// a single list). Its `members` map holds the household's uids. Every user's
-// app creates lists/{uid} for them on first sign-in. Any member can invite
-// someone by adding their address to `invites`; the invited person's app then
-// adds them to `members` when they sign in with that address. Nobody can add
-// anyone else to `members`, so a household is only ever joined by invitation.
+// a single list). Its `members` map holds the household's uids. No client
+// creates a household; the one in use was made before that rule, and others
+// only with admin rights. Any member can invite someone by adding their
+// address to `invites`; the invited person's app then adds them to `members`
+// when they sign in with that address. Nobody can add anyone else to
+// `members`, so a household is only ever joined by invitation, and someone
+// without one gets no data at all.
 //
 // The household's items, at lists/{householdId}/items, are its main list,
 // which every member sees. Further lists are lists/{householdId}/lists/{id},
@@ -52,14 +54,9 @@ service cloud.firestore {
           .diff(resource.data.get('memberNames', {})).affectedKeys().hasOnly([request.auth.uid]);
       }
 
-      // `resource == null` lets the app ask whether its household exists yet.
-      // The app finds its households with where('members.<uid>', '==', true)
+      // The app finds its household with where('members.<uid>', '==', true)
       // and its invitations with where('invites', 'array-contains', <own address>).
-      allow read: if signedIn() && (resource == null || isMember() || isInvited());
-      allow create: if signedIn()
-        && householdId == request.auth.uid
-        && request.resource.data.members.keys().hasOnly([request.auth.uid])
-        && request.resource.data.get('invites', []).size() == 0;
+      allow read: if signedIn() && (isMember() || isInvited());
       // Members may rename the household and its main list, invite or
       // withdraw invitations, and set their own name. `invites` holds
       // normalised addresses; `invitedAs` the same as typed.
@@ -84,22 +81,15 @@ service cloud.firestore {
         return signedIn() && request.auth.uid in household().members;
       }
 
-      // The owner is let in by uid, without reading the household document:
-      // the app starts its item listener and writes before that document
-      // reaches the server, and a rule that needs it would reject them.
-      function canUseHousehold() {
-        return signedIn() && (householdId == request.auth.uid || inHousehold());
-      }
-
       // The main list. No client deletes an item outright; a delete sets
       // `deletedAt`, and tombstones are purged with admin rights.
       match /items/{itemId} {
-        allow read, create, update: if canUseHousehold();
+        allow read, create, update: if inHousehold();
       }
 
       // What the household has learned about each product, such as its category.
       match /products/{productId} {
-        allow read, create, update: if canUseHousehold();
+        allow read, create, update: if inHousehold();
       }
 
       match /lists/{listId} {

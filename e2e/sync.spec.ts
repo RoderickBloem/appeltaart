@@ -5,7 +5,7 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test'
 import fc from 'fast-check'
 import type { ListOp, Look } from '../src/harness'
-import { addMember, serverDocs, type ServerDoc } from './helpers'
+import { addMember, createHousehold, serverDocs, type ServerDoc } from './helpers'
 
 const CLIENTS = 3
 // Generated scenarios per property. SYNC_RUNS=1000 for a longer hunt.
@@ -56,9 +56,10 @@ class Scenario {
     scenario.phones.push(...pages.map((page, i) => ({ page, email: `phone-${i}-${scenario.id}@example.com`, offline: false })))
     const uids = await Promise.all(scenario.phones.map((phone) => scenario.open(phone)))
     scenario.listId = uids[0]
-    // Phone 0's own list, shared by hand as the maintainer would. The rules
-    // only let members read the items, so the others start listening after.
-    await pages[0].evaluate(() => window.harness!.createList())
+    // Phone 0's household, made and shared with admin rights, as the real
+    // one was. The rules only let members read the items, so the phones
+    // start listening after.
+    await createHousehold(uids[0])
     for (const uid of uids.slice(1)) await addMember(scenario.listId, uid)
     await Promise.all(scenario.phones.map((phone) => scenario.watch(phone)))
     return scenario

@@ -5,7 +5,6 @@ import {
   deleteField,
   doc,
   FieldPath,
-  getDoc,
   increment,
   limit,
   onSnapshot,
@@ -78,22 +77,6 @@ export { normalise } from './normalise'
 // change, and the snapshot listener shows it at once.
 function report(write: Promise<void>) {
   write.catch((e) => console.error('Write failed', e))
-}
-
-/**
- * Creates the list document the first time a member opens the app. Resolves
- * once the write is issued, not when the server confirms it.
- */
-export function ensureList(list: List, members: string[]): Promise<void> {
-  return getDoc(list)
-    .then((snapshot) => {
-      if (!snapshot.exists()) {
-        const memberMap = Object.fromEntries(members.map((uid) => [uid, true]))
-        report(setDoc(list, { name: 'Household', members: memberMap, createdAt: serverTimestamp() }))
-      }
-    })
-    // Offline with nothing cached: try again on the next start.
-    .catch(() => {})
 }
 
 // createdAt orders the list, so it comes from the phone's clock. A pending
@@ -317,9 +300,9 @@ function join(list: List, uid: string, email: string) {
 }
 
 /**
- * The household to use: among those the user is a member of, the one with
- * the most members, then the oldest, so a household they were invited to
- * wins over the one their app made at first sign-in. Items there stay there.
+ * Which shared document to use. There is one; an account from before
+ * invitations may also have one of its own, and the one with the most
+ * members, then the oldest, wins.
  */
 function chooseHousehold(households: QueryDocumentSnapshot<DocumentData>[]): string {
   const size = (d: QueryDocumentSnapshot<DocumentData>) => Object.keys(d.data().members ?? {}).length
@@ -329,10 +312,8 @@ function chooseHousehold(households: QueryDocumentSnapshot<DocumentData>[]): str
 }
 
 /**
- * The user's household, `undefined` until known. Joins any household the
- * user is invited to. Creates the user's own if the server says they belong
- * to none; never from the cache alone, which may simply not know the shared
- * one yet.
+ * The shared document the user is in, `undefined` until known (and for
+ * someone not invited, for good). Joins it when the user is invited.
  */
 export function useHousehold(db: Firestore, uid: string, email: string | null): Household | undefined {
   const [household, setHousehold] = useState<Household | undefined>(undefined)
@@ -341,15 +322,9 @@ export function useHousehold(db: Firestore, uid: string, email: string | null): 
     let chosen: string | undefined
     const mine = query(collection(db, 'lists'), where(new FieldPath('members', uid), '==', true))
     const stopMine = onSnapshot(mine, { includeMetadataChanges: true }, (snapshot) => {
-      if (snapshot.empty) {
-        if (!snapshot.metadata.fromCache) void ensureList(listRef(db, uid), [uid])
-        return
-      }
-      // A household joined but not yet confirmed by the server would refuse
-      // the item listener; the user's own never does (see firestore.rules).
-      // The one already chosen stays usable through later pending writes,
-      // such as the user's name being recorded in it.
-      const usable = snapshot.docs.filter((d) => d.id === uid || d.id === chosen || !d.metadata.hasPendingWrites)
+      // A join the server has not confirmed would only have its listeners
+      // refused; wait for it. Once chosen, later pending writes do not matter.
+      const usable = snapshot.docs.filter((d) => d.id === chosen || !d.metadata.hasPendingWrites)
       if (usable.length === 0) return
       const id = chooseHousehold(usable)
       chosen = id
@@ -357,11 +332,11 @@ export function useHousehold(db: Firestore, uid: string, email: string | null): 
       // below it are not restarted on every change to the document.
       setHousehold((current) => (current?.id === id ? current : listRef(db, id)))
     })
-
     if (!email) return stopMine
+
     const address = normaliseEmail(email)
-    const invited = query(collection(db, 'lists'), where('invites', 'array-contains', address))
-    const stopInvited = onSnapshot(invited, (snapshot) => {
+    const invitations = query(collection(db, 'lists'), where('invites', 'array-contains', address))
+    const stopInvited = onSnapshot(invitations, (snapshot) => {
       for (const d of snapshot.docs) if (!d.metadata.hasPendingWrites) join(d.ref, uid, address)
     })
     return () => {

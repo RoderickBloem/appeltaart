@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { addItems, addMember, freshEmail, liveItems, row, setCategory, signInFresh } from './helpers'
+import { addItems, addMember, freshEmail, liveItems, row, setCategory, signIn, signInFresh } from './helpers'
 
 test('a product remembers its category: typed again later, it lands in the same one', async ({ page }) => {
   await signInFresh(page)
@@ -30,7 +30,7 @@ test('items are sorted by category in shop order, uncategorised last', async ({ 
 test('a category set on one phone is used on the other', async ({ browser }) => {
   const [a, b] = await Promise.all([browser.newContext(), browser.newContext()].map(async (c) => (await c).newPage()))
   const aUid = await signInFresh(a)
-  const bUid = await signInFresh(b, freshEmail('bo'))
+  const bUid = await signIn(b, freshEmail('bo'))
   await addMember(aUid, bUid)
   await addItems(a, 'Bread')
   await expect(liveItems(b)).toHaveText(['Bread'])

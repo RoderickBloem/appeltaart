@@ -26,7 +26,6 @@ import {
   addItem,
   clearChecked,
   deleteItem,
-  ensureList,
   listRef,
   renameItem,
   setChecked,
@@ -107,17 +106,6 @@ async function open(scenario: string, email: string, offline: boolean): Promise<
   const uid = auth.currentUser!.uid
   client = { app, db, list: listRef(db, uid), uid, items: [], synced: false, offline, unsubscribe: () => {} }
   return uid
-}
-
-/**
- * Creates this client's own list, lists/{uid}, as the app does at first
- * sign-in, and resolves when the server has it. Sharing it is the test's job,
- * with admin rights, as the maintainer does in the console.
- */
-async function createList() {
-  const { list, db, uid } = current()
-  await ensureList(list, [uid])
-  await waitForPendingWrites(db)
 }
 
 /** Starts listening to the items of `listId`, as the app's list screen does. */
@@ -228,7 +216,7 @@ async function dispose() {
   await deleteApp(app)
 }
 
-export const harness = { open, createList, watch, apply, setOffline, waitForWrites, look, dispose }
+export const harness = { open, watch, apply, setOffline, waitForWrites, look, dispose }
 
 declare global {
   interface Window {

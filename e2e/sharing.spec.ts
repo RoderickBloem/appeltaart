@@ -1,14 +1,24 @@
 // Milestone 4's exit test: three phones, one list, conflicting offline edits
 // converging. Each phone is its own browser context running the real app.
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
-import { addItems, addMember, checkedItems, freshEmail, liveItems, signInFresh } from './helpers'
+import { addItems, addMember, checkedItems, freshEmail, liveItems, signIn, signInFresh } from './helpers'
 
 type Phone = { context: BrowserContext; page: Page; uid: string }
 
-async function phone(browser: import('@playwright/test').Browser, email = freshEmail()): Promise<Phone> {
+/** A phone signed in with a household of its own (`own`), or invited or added later. */
+async function phone(browser: import('@playwright/test').Browser, email = freshEmail(), own = true): Promise<Phone> {
   const context = await browser.newContext()
   const page = await context.newPage()
-  return { context, page, uid: await signInFresh(page, email) }
+  return { context, page, uid: own ? await signInFresh(page, email) : await signIn(page, email) }
+}
+
+/** Whether `uid` has been let in, according to the server. */
+async function isMember(listId: string, uid: string) {
+  const response = await fetch(`http://127.0.0.1:8080/v1/projects/demo-appeltaart/databases/(default)/documents/lists/${listId}`, {
+    headers: { Authorization: 'Bearer owner' },
+  })
+  const doc = (await response.json()) as { fields: { members: { mapValue: { fields: Record<string, unknown> } } } }
+  return uid in doc.fields.members.mapValue.fields
 }
 
 /** Opens the share panel and invites `email`. */
@@ -27,16 +37,16 @@ test('a member invites someone by Gmail address, who joins on signing in and can
   await invite(a.page, bEmail.toUpperCase())
   await expect(a.page.getByTestId('invites')).toContainText(bEmail)
 
-  const b = await phone(browser, bEmail)
+  const b = await phone(browser, bEmail, false)
   await expect(liveItems(b.page)).toHaveText(['Milk'])
   // The invitation is used up, and the panel counts two people.
   await expect(a.page.getByTestId('invites')).not.toContainText(bEmail)
-  await expect(a.page.getByTestId('member-count')).toHaveText('2 people in this household')
+  await expect(a.page.getByTestId('member-count')).toHaveText('2 people use these lists')
 
   // The newcomer has the same rights, including inviting.
   const cEmail = freshEmail('cas')
   await invite(b.page, cEmail)
-  const c = await phone(browser, cEmail)
+  const c = await phone(browser, cEmail, false)
   await expect(liveItems(c.page)).toHaveText(['Milk'])
   await addItems(c.page, 'Bread')
   await expect(liveItems(a.page)).toHaveText(['Bread', 'Milk'])
@@ -48,7 +58,7 @@ test('a Gmail invitation ignores dots and a +suffix, as Gmail does', async ({ br
   await addItems(a.page, 'Milk')
   const local = `dora${crypto.randomUUID().slice(0, 8)}`
   await invite(a.page, `d.o.r.a${local.slice(4)}+shopping@gmail.com`)
-  const b = await phone(browser, `${local}@gmail.com`)
+  const b = await phone(browser, `${local}@gmail.com`, false)
   await expect(liveItems(b.page)).toHaveText(['Milk'])
 })
 
@@ -60,17 +70,27 @@ test('a withdrawn invitation lets nobody in', async ({ browser }) => {
   await a.page.getByRole('button', { name: `Withdraw invitation for ${bEmail}` }).click()
   await expect(a.page.getByTestId('invites')).not.toContainText(bEmail)
 
-  const b = await phone(browser, bEmail)
-  await addItems(b.page, 'Own item')
-  await expect(liveItems(b.page)).toHaveText(['Own item'])
+  const b = await phone(browser, bEmail, false)
+  await expect(b.page.getByTestId('user-name')).toBeVisible()
+  await b.page.waitForTimeout(2_000)
+  expect(await isMember(a.uid, b.uid)).toBe(false)
+  await expect(b.page.getByLabel('New item')).toHaveCount(0)
+})
+
+test('someone added in the console is let in at once', async ({ browser }) => {
+  const a = await phone(browser)
+  await addItems(a.page, 'Milk')
+  const b = await phone(browser, freshEmail('ben'), false)
+  await addMember(a.uid, b.uid)
+  await expect(liveItems(b.page)).toHaveText(['Milk'])
 })
 
 const tap = (page: Page, name: string) => page.getByTestId('item-name').filter({ hasText: name }).click()
 
-test('a member added by hand sees the shared list instead of their own', async ({ browser }) => {
+// Accounts from before invitations may have a household of their own.
+test('someone with an older household of their own sees the shared one once added', async ({ browser }) => {
   const [a, b] = [await phone(browser), await phone(browser)]
   await addItems(a.page, 'Milk')
-  // b has a list of its own until the maintainer adds them.
   await addItems(b.page, 'Own item')
   await expect(liveItems(b.page)).toHaveText(['Own item'])
 
@@ -85,7 +105,7 @@ test('a member added by hand sees the shared list instead of their own', async (
 
 test('three phones make conflicting edits offline and end with the same list', async ({ browser }) => {
   test.setTimeout(60_000)
-  const phones = [await phone(browser), await phone(browser), await phone(browser)]
+  const phones = [await phone(browser), await phone(browser, freshEmail(), false), await phone(browser, freshEmail(), false)]
   const [a, b, c] = phones
   await addMember(a.uid, b.uid)
   await addMember(a.uid, c.uid)

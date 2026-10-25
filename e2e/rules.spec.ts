@@ -98,13 +98,13 @@ test('nobody adds anyone to the members directly, not even the owner', async ({ 
   expect((await addSelf(member, 'friend')).status).toBe(403)
 })
 
-test("a user cannot create a list under someone else's uid, or with other members", async () => {
+test('nobody creates a household from the app, not even their own', async () => {
   const create = (uid: string, listId: string, members: string[]) =>
     as(uid, `/lists?documentId=${listId}`, { method: 'POST', body: { fields: membersField(...members) } })
   expect((await create('attacker', 'victim', ['attacker'])).status).toBe(403)
   expect((await create('attacker', 'attacker', ['attacker', 'victim'])).status).toBe(403)
   const newcomer = fresh('newcomer')
-  expect((await create(newcomer, newcomer, [newcomer])).status).toBe(200)
+  expect((await create(newcomer, newcomer, [newcomer])).status).toBe(403)
 })
 
 test('a user can look up the lists they belong to, and no one else’s', async ({ page }) => {
