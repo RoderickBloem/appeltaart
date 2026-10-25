@@ -94,6 +94,7 @@ button.primary {
 /* Pinned at the top so it is always in reach. */
 .add {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   position: sticky;
@@ -271,4 +272,24 @@ input {
   border: 0;
   color: inherit;
   font-weight: 600;
+}
+
+.add input {
+  flex: 1;
+  width: auto;
+}
+
+/* One line of suggestions under the input, scrolling sideways if long. */
+.suggestions {
+  display: flex;
+  flex-basis: 100%;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.suggestions button {
+  flex: none;
+  min-height: 40px;
+  border-radius: 999px;
+  font-size: 0.9rem;
 }

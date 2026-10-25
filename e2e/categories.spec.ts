@@ -3,17 +3,17 @@ import { addItems, addMember, freshEmail, liveItems, row, setCategory, signInFre
 
 test('a product remembers its category: typed again later, it lands in the same one', async ({ page }) => {
   await signInFresh(page)
-  await addItems(page, 'Tomatoes')
-  await expect(row(page, 'Tomatoes')).toHaveAttribute('data-category', '')
+  await addItems(page, 'Quinoa')
+  await expect(row(page, 'Quinoa')).toHaveAttribute('data-category', '')
 
-  await setCategory(page, 'Tomatoes', 'Fruit & vegetables')
-  await expect(row(page, 'Tomatoes')).toHaveAttribute('data-category', 'produce')
+  await setCategory(page, 'Quinoa', 'Pantry')
+  await expect(row(page, 'Quinoa')).toHaveAttribute('data-category', 'pantry')
 
   // Next week: bought, cleared, and typed again in different capitals.
-  await page.getByRole('button', { name: 'Delete Tomatoes' }).click()
-  await expect(row(page, 'Tomatoes')).toHaveCount(0)
-  await addItems(page, 'tomatoes')
-  await expect(row(page, 'tomatoes')).toHaveAttribute('data-category', 'produce')
+  await page.getByRole('button', { name: 'Delete Quinoa' }).click()
+  await expect(row(page, 'Quinoa')).toHaveCount(0)
+  await addItems(page, 'quinoa')
+  await expect(row(page, 'quinoa')).toHaveAttribute('data-category', 'pantry')
 })
 
 test('items are sorted by category in shop order, uncategorised last', async ({ page }) => {
@@ -35,15 +35,15 @@ test('a category set on one phone is used on the other', async ({ browser }) => 
   await addItems(a, 'Bread')
   await expect(liveItems(b)).toHaveText(['Bread'])
 
-  await addItems(a, 'Tomatoes')
-  await setCategory(a, 'Tomatoes', 'Fruit & vegetables')
-  await a.getByRole('button', { name: 'Delete Tomatoes' }).click()
-  await expect(row(a, 'Tomatoes')).toHaveCount(0)
+  await addItems(a, 'Quinoa')
+  await setCategory(a, 'Quinoa', 'Pantry')
+  await a.getByRole('button', { name: 'Delete Quinoa' }).click()
+  await expect(row(a, 'Quinoa')).toHaveCount(0)
   await expect(liveItems(b)).toHaveText(['Bread'])
 
-  await addItems(b, 'Tomatoes')
-  await expect(row(b, 'Tomatoes')).toHaveAttribute('data-category', 'produce')
-  await expect(row(a, 'Tomatoes')).toHaveAttribute('data-category', 'produce')
+  await addItems(b, 'Quinoa')
+  await expect(row(b, 'Quinoa')).toHaveAttribute('data-category', 'pantry')
+  await expect(row(a, 'Quinoa')).toHaveAttribute('data-category', 'pantry')
 })
 
 test('a category changed again is remembered as changed', async ({ page }) => {

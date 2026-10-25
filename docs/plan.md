@@ -10,7 +10,7 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 | 4 | Sharing | Built and tested against the emulators: `e2e/sharing.spec.ts` (three phones, real UI, conflicting offline edits converge; inviting by Gmail address) and `e2e/rules.spec.ts`. Deployed with `837ad06`. |
 | 5 | Shopping polish | Built: undo toast, "Not synced", wake lock, duplicates as one row (`e2e/polish.spec.ts`). Deployed with `7b360de`. |
 | 6 | Categories | Built early, at the maintainer's request: eight fixed categories in shop order, chosen per product (`e2e/categories.spec.ts`). Deployed with `7b360de`. |
-| 7 | Dictionary | Learned half built with categories (one document per product); seed list and type-ahead not started. |
+| 7 | Dictionary | Built: learned products (with categories), a seed list of 222 groceries, type-ahead suggestions, category filled in automatically (`e2e/dictionary.spec.ts`). Not deployed. |
 | 8 | Quantities | Built early: free text after a colon (`e2e/quantities.spec.ts`). Deployed with `7b360de`. |
 
 ## Deployment
@@ -77,10 +77,17 @@ Left for milestone 5, as the build order says: swipe to delete, the undo toast, 
 - `firestore.rules`: `products` has the same rules as `items`.
 - Tests: `e2e/categories.spec.ts`, `e2e/quantities.spec.ts`, `e2e/polish.spec.ts`.
 
+## What milestone 7 built
+
+- `src/seed.ts`: the seed dictionary; `src/dictionary.ts`: `categoryFor` (learned, else seed) and `suggest` (ranking in the spec, open question 17); `src/normalise.ts` holds `normalise`, shared by both.
+- `src/list.ts`: `useProducts` replaces `useProductCategories` and also returns names and use counts; `enterItem` takes a category lookup.
+- `src/ShoppingList.tsx`: the suggestion row under the input.
+- Tests in `e2e/dictionary.spec.ts`. Tests that assumed items stay in the order typed now expect shop order, since common groceries get a category from the seed list.
+
 ## Next
 
 - Use it for a while, as the spec intends after milestone 5, and see what is missing.
-- Candidates: editing categories in the app (names, colours, shop order); the seed dictionary and type-ahead (milestone 7); swipe-to-delete; editing a quantity by tapping its chip.
+- Every milestone in the build order is built. Candidates for later: editing categories in the app (names, colours, shop order); seed names in another language; swipe-to-delete; editing a quantity by tapping its chip.
 - Removing a member in the console is untested: their listeners will be refused by the rules, and the app has no handling for that.
 
 ## Still open

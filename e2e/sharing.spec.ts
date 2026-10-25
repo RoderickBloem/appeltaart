@@ -39,8 +39,8 @@ test('a member invites someone by Gmail address, who joins on signing in and can
   const c = await phone(browser, cEmail)
   await expect(liveItems(c.page)).toHaveText(['Milk'])
   await addItems(c.page, 'Bread')
-  await expect(liveItems(a.page)).toHaveText(['Milk', 'Bread'])
-  await expect(liveItems(b.page)).toHaveText(['Milk', 'Bread'])
+  await expect(liveItems(a.page)).toHaveText(['Bread', 'Milk'])
+  await expect(liveItems(b.page)).toHaveText(['Bread', 'Milk'])
 })
 
 test('a Gmail invitation ignores dots and a +suffix, as Gmail does', async ({ browser }) => {
@@ -80,7 +80,7 @@ test('a member added by hand sees the shared list instead of their own', async (
   await expect(liveItems(b.page)).toHaveText(['Milk'])
 
   await addItems(b.page, 'Bread')
-  await expect(liveItems(a.page)).toHaveText(['Milk', 'Bread'])
+  await expect(liveItems(a.page)).toHaveText(['Bread', 'Milk'])
 })
 
 test('three phones make conflicting edits offline and end with the same list', async ({ browser }) => {
@@ -90,11 +90,11 @@ test('three phones make conflicting edits offline and end with the same list', a
   await addMember(a.uid, b.uid)
   await addMember(a.uid, c.uid)
   await addItems(a.page, 'Milk', 'Bread', 'Eggs')
-  for (const { page } of phones) await expect(liveItems(page)).toHaveText(['Milk', 'Bread', 'Eggs'])
+  for (const { page } of phones) await expect(liveItems(page)).toHaveText(['Bread', 'Milk', 'Eggs'])
 
   // Online, a change reaches the others within a moment.
   await addItems(b.page, 'Butter')
-  for (const { page } of phones) await expect(liveItems(page)).toHaveText(['Milk', 'Bread', 'Eggs', 'Butter'])
+  for (const { page } of phones) await expect(liveItems(page)).toHaveText(['Bread', 'Milk', 'Eggs', 'Butter'])
 
   for (const { context } of phones) await context.setOffline(true)
 
@@ -122,7 +122,7 @@ test('three phones make conflicting edits offline and end with the same list', a
   }
 
   for (const { page } of phones) {
-    await expect(liveItems(page)).toHaveText(['Bread', 'Butter', 'Apples', 'Coffee'])
+    await expect(liveItems(page)).toHaveText(['Apples', 'Bread', 'Butter', 'Coffee'])
     await expect(checkedItems(page)).toHaveCount(0)
   }
 })

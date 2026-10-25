@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test'
 import { addItems, checkedItems, liveItems, serverItems, signInFresh } from './helpers'
 
-test('items are added in order and the field stays focused', async ({ page }) => {
+test('items are added, sorted in shop order, and the field stays focused', async ({ page }) => {
   const uid = await signInFresh(page)
   await addItems(page, 'Milk', 'Bread', 'Äpfel')
 
-  await expect(liveItems(page)).toHaveText(['Milk', 'Bread', 'Äpfel'])
+  // Bread and milk get their categories from the seed list; Äpfel has none.
+  await expect(liveItems(page)).toHaveText(['Bread', 'Milk', 'Äpfel'])
   await expect(page.getByLabel('New item')).toBeFocused()
   await expect(page.getByLabel('New item')).toHaveValue('')
   await expect.poll(() => serverItems(uid)).toEqual([
@@ -31,7 +32,7 @@ test('tapping a row checks it, tapping a checked row unchecks it', async ({ page
   await expect.poll(async () => (await serverItems(uid)).find((i) => i.name === 'Milk')?.checked).toBe(true)
 
   await checkedItems(page).filter({ hasText: 'Milk' }).click()
-  await expect(liveItems(page)).toHaveText(['Milk', 'Bread'])
+  await expect(liveItems(page)).toHaveText(['Bread', 'Milk'])
   await expect(checkedItems(page)).toHaveCount(0)
   await expect.poll(async () => (await serverItems(uid)).find((i) => i.name === 'Milk')?.checked).toBe(false)
 })

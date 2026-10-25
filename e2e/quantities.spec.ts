@@ -41,10 +41,10 @@ test('typing a checked product puts it back on the list', async ({ page }) => {
 
 test('the category is remembered by the name, whatever the quantity', async ({ page }) => {
   await signInFresh(page)
-  await addItems(page, 'Tomatoes: 6')
-  await setCategory(page, 'Tomatoes', 'Fruit & vegetables')
-  await page.getByRole('button', { name: 'Delete Tomatoes' }).click()
-  await expect(row(page, 'Tomatoes')).toHaveCount(0)
-  await addItems(page, 'tomatoes: 3')
-  await expect(row(page, 'tomatoes')).toHaveAttribute('data-category', 'produce')
+  await addItems(page, 'Quinoa: 6')
+  await setCategory(page, 'Quinoa', 'Pantry')
+  await page.getByRole('button', { name: 'Delete Quinoa' }).click()
+  await expect(row(page, 'Quinoa')).toHaveCount(0)
+  await addItems(page, 'quinoa: 3')
+  await expect(row(page, 'quinoa')).toHaveAttribute('data-category', 'pantry')
 })

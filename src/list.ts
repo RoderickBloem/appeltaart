@@ -23,6 +23,8 @@ import {
   type SnapshotMetadata,
 } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
+import type { Product } from './dictionary'
+import { normalise } from './normalise'
 
 export type Item = {
   id: string
@@ -52,10 +54,7 @@ const productRef = (list: List, normName: string) => doc(list, 'products', encod
 const MAX_ITEMS = 2000
 const MAX_BATCH = 500
 
-/** Lower-cased, trimmed, accents folded: "  Äpfel " and "apfel" match. */
-export function normalise(name: string): string {
-  return name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
-}
+export { normalise } from './normalise'
 
 // Writes are never awaited: the promise resolves only when the server
 // confirms, which never happens offline. The local cache already has the
@@ -135,14 +134,20 @@ export function parseEntry(text: string): { name: string; quantity?: string } {
 /**
  * What typing `text` into the list does. A product already on the list,
  * checked or not, is put back unchecked and given the new quantity, if one
- * was typed, rather than added twice. A new one is added in the category the
- * list remembers for it.
+ * was typed, rather than added twice. A new one is added in the category
+ * `categoryFor` gives it.
  */
-export function enterItem(list: List, uid: string, text: string, items: Item[], known: Map<string, string> | undefined) {
+export function enterItem(
+  list: List,
+  uid: string,
+  text: string,
+  items: Item[],
+  categoryFor: (normName: string) => string | undefined,
+) {
   const { name, quantity } = parseEntry(text)
   if (!name) return
   const namesakes = items.filter((item) => item.normName === normalise(name))
-  if (namesakes.length === 0) addItem(list, uid, name, known?.get(normalise(name)), quantity)
+  if (namesakes.length === 0) addItem(list, uid, name, categoryFor(normalise(name)), quantity)
   for (const item of namesakes) {
     const change = {
       ...(item.checked && { checked: false }),
@@ -172,22 +177,22 @@ export function setCategory(list: List, items: Item[], categoryId: string) {
   report(setDoc(productRef(list, normName), { name, normName, categoryId }, { merge: true }))
 }
 
-/** Every known product's category, by normalised name; `undefined` until known. */
-export function useProductCategories(list: List): Map<string, string> | undefined {
-  const [categories, setCategories] = useState<Map<string, string> | undefined>(undefined)
+/** Every product the list has learned, by normalised name; `undefined` until known. */
+export function useProducts(list: List): Map<string, Product> | undefined {
+  const [products, setProducts] = useState<Map<string, Product> | undefined>(undefined)
   useEffect(
     () =>
       onSnapshot(collection(list, 'products'), (snapshot) => {
-        const known = new Map<string, string>()
+        const known = new Map<string, Product>()
         for (const d of snapshot.docs) {
-          const { normName, categoryId } = d.data()
-          if (categoryId) known.set(normName, categoryId)
+          const { name, normName, categoryId, uses } = d.data()
+          known.set(normName, { name, normName, categoryId, uses: uses ?? 0 })
         }
-        setCategories(known)
+        setProducts(known)
       }),
     [list],
   )
-  return categories
+  return products
 }
 
 export function renameItem(list: List, id: string, name: string) {

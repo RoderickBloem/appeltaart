@@ -1,5 +1,6 @@
 import { signOut, type User } from 'firebase/auth'
-import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { categoryFor, suggest, type Product } from './dictionary'
 import { CATEGORIES, category, categoryOrder } from './categories'
 import { auth, db } from './firebase'
 import {
@@ -13,7 +14,8 @@ import {
   useItems,
   useListInfo,
   useMyList,
-  useProductCategories,
+  useProducts,
+  parseEntry,
   withdrawInvite,
   type Item,
   type List,
@@ -129,10 +131,10 @@ type Group = { key: string; items: Item[]; name: string; checked: boolean; quant
 /**
  * Groups `items` (in the order they were added) and sorts the groups by
  * category in shop order. An item without a category of its own takes the
- * one the list remembers for the product: it may have been added on a phone
- * that had not yet heard of that category.
+ * one the list remembers for the product, or the seed list's: it may have
+ * been added on a phone that had not yet heard of that category.
  */
-function groupItems(items: Item[], known: Map<string, string> | undefined): Group[] {
+function groupItems(items: Item[], products: Map<string, Product> | undefined): Group[] {
   const groups = new Map<string, Item[]>()
   for (const item of items) groups.set(item.normName, [...(groups.get(item.normName) ?? []), item])
   const grouped = [...groups].map(([key, members]) => ({
@@ -141,7 +143,7 @@ function groupItems(items: Item[], known: Map<string, string> | undefined): Grou
     name: members[0].name,
     checked: members.every((i) => i.checked),
     quantity: [...new Set(members.flatMap((i) => (i.quantity ? [i.quantity] : [])))].join(', '),
-    categoryId: members.find((i) => i.categoryId)?.categoryId ?? known?.get(key),
+    categoryId: members.find((i) => i.categoryId)?.categoryId ?? categoryFor(products, key),
   }))
   // A stable sort, so within a category the order they were added in stays.
   return grouped.sort((a, b) => categoryOrder(a.categoryId) - categoryOrder(b.categoryId))
@@ -174,8 +176,9 @@ const TOAST_MS = 5_000
 function Items({ list, uid }: { list: List; uid: string }) {
   const { items, pending } = useItems(list)
   const unsynced = useLasting(pending, UNSYNCED_MS)
-  const known = useProductCategories(list)
+  const products = useProducts(list)
   const [text, setText] = useState('')
+  const input = useRef<HTMLInputElement>(null)
   // The group whose category picker is open.
   const [picking, setPicking] = useState<string | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
@@ -186,13 +189,24 @@ function Items({ list, uid }: { list: List; uid: string }) {
     return () => clearTimeout(timer)
   }, [toast])
 
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    enterItem(list, uid, text, items ?? [], known)
+  function enter(entry: string) {
+    enterItem(list, uid, entry, items ?? [], (normName) => categoryFor(products, normName))
     setText('')
+    input.current?.focus()
   }
 
-  const groups = groupItems(items ?? [], known)
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    enter(text)
+  }
+
+  const typed = parseEntry(text)
+  const onList = new Set((items ?? []).filter((i) => !i.checked).map((i) => i.normName))
+  const suggestions = suggest(typed.name, products, onList)
+  // Picking a suggestion keeps a quantity typed after the colon.
+  const pick = (name: string) => enter(typed.quantity === undefined ? name : `${name}: ${typed.quantity}`)
+
+  const groups = groupItems(items ?? [], products)
   const live = groups.filter((g) => !g.checked)
   const checked = groups.filter((g) => g.checked)
 
@@ -265,6 +279,7 @@ function Items({ list, uid }: { list: List; uid: string }) {
       {/* Stays focused after submitting, so several items can be typed in a row. */}
       <form className="add" onSubmit={submit}>
         <input
+          ref={input}
           aria-label="New item"
           placeholder="Add an item, or item: amount"
           value={text}
@@ -274,6 +289,21 @@ function Items({ list, uid }: { list: List; uid: string }) {
         />
         {/* Only while something has not left the phone. */}
         {unsynced && <span className="pending">Not synced</span>}
+        {suggestions.length > 0 && (
+          <div className="suggestions" data-testid="suggestions">
+            {suggestions.map((name) => (
+              <button
+                key={name}
+                type="button"
+                // Keeps the keyboard up: the input never loses focus.
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={() => pick(name)}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
       </form>
 
       <ul className="items" data-testid="live-items">

@@ -10,7 +10,7 @@ test('a delete can be undone from the toast', async ({ page }) => {
   await expect(page.getByRole('status')).toContainText('Deleted Milk')
 
   await page.getByRole('button', { name: 'Undo' }).click()
-  await expect(liveItems(page)).toHaveText(['Milk', 'Bread'])
+  await expect(liveItems(page)).toHaveText(['Bread', 'Milk'])
   await expect(page.getByRole('status')).toHaveCount(0)
   await expect.poll(async () => (await serverDocs(uid)).every((i) => !i.deleted)).toBe(true)
 })
