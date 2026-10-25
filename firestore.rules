@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// Milestone 2: each user has one list, lists/{uid}, with only themselves in
+// `members`. Milestone 4 (sharing) generalises this to lists found through
+// their members map.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /lists/{listId} {
+      // `resource == null` lets the app ask whether its list exists yet.
+      allow read: if signedIn()
+        && (resource == null || request.auth.uid in resource.data.members);
+      allow create: if signedIn()
+        && listId == request.auth.uid
+        && request.resource.data.members.keys().hasOnly([request.auth.uid]);
+      allow update: if signedIn() && request.auth.uid in resource.data.members;
+
+      // The owner is let in by uid, without reading the list document: the
+      // app starts its item listener and writes before that document reaches
+      // the server, and a rule that needs it would reject them.
+      match /items/{itemId} {
+        allow read, write: if signedIn()
+          && (listId == request.auth.uid
+            || request.auth.uid in get(/databases/$(database)/documents/lists/$(listId)).data.members);
+      }
+    }
+  }
+}

@@ -27,10 +27,18 @@ npm run dev         # terminal 2: app at http://localhost:5173
 
 ## Deploying to a real Firebase project
 
-1. Create a project in the Firebase console and add a web app.
-2. Under Authentication, enable the Google provider.
-3. Copy `.env.production.example` to `.env.production` and fill in the web app's config.
-4. `npx firebase login`, then `npm run build && npx firebase deploy --only hosting --project <project-id>`.
-5. Open the hosted URL on the phone and use "Add to Home Screen".
+`.github/workflows/deploy.yml` builds the app and deploys it, together with `firestore.rules`, to Firebase Hosting. It runs on every `v*` tag and by hand from the Actions tab (**Deploy > Run workflow**). It fetches the web app config from the project itself, so nothing has to be copied into the repository.
 
-Hosting on Firebase keeps the sign-in helper pages on the app's own domain, which Google sign-in needs in installed home-screen apps.
+One-time setup, all in a browser:
+
+1. **Firebase project.** At console.firebase.google.com, create a project (the free Spark plan is enough; Analytics is not needed).
+2. **Web app and hosting.** Project settings > General > Your apps > Add app > Web. Tick **Also set up Firebase Hosting**.
+3. **Google sign-in.** Build > Authentication > Get started > Sign-in method > Google > Enable.
+4. **Database.** Build > Firestore Database > Create database, in production mode, location `eur3` (Europe). The workflow replaces the default rules with `firestore.rules`.
+5. **Deploy key.** At console.cloud.google.com, with the same project selected: IAM & Admin > Service accounts > Create service account, named `github-deploy`, with the roles **Firebase Admin** and **Service Usage Consumer**. Then open it, Keys > Add key > Create new key > JSON; this downloads a key file.
+6. **GitHub settings.** In this repository: Settings > Secrets and variables > Actions.
+   - Secrets tab: new secret `FIREBASE_SERVICE_ACCOUNT`, with the whole content of the key file. Then delete the downloaded file.
+   - Variables tab: new variable `FIREBASE_PROJECT_ID`, with the project id (shown in the Firebase project settings, e.g. `appeltaart-1a2b3`).
+7. Run the workflow. The app is then at `https://<project-id>.web.app`; open it on the phone and use "Add to Home Screen".
+
+The web config the app ships with (API key, app id) is public by design; access is controlled by `firestore.rules`. The service account key is not public: it stays in GitHub's secret store.

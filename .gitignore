@@ -30,3 +30,6 @@ playwright-report
 # Firebase emulator logs
 *-debug.log
 .firebase
+
+# Written by the deploy workflow
+.env.production

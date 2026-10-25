@@ -4,7 +4,7 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 
 | # | Milestone | Status |
 | --- | --- | --- |
-| 1 | Skeleton | Built and tested in the browser. Waiting on the maintainer: Firebase project, `.env.production`, deploy, install on a phone. |
+| 1 | Skeleton | Built and tested in the browser. Deployment set up (`.github/workflows/deploy.yml`); waiting on the maintainer's Firebase project and GitHub settings (README, "Deploying"). |
 | 2 | Single-device list | Built and tested against the emulators (7 tests in `e2e/list.spec.ts`). Not yet tried on a phone. |
 | 3 | Emulator and harness | Next |
 | 4 | Sharing | Not started |
@@ -19,6 +19,8 @@ The milestones are defined in [`spec.md`](spec.md), section "Build order". One m
 - **2026-10-24 — Everything is committed to `main`.**
 - **2026-10-24 — Offline delete (open question 2).** Settled: the live-items query drops an offline-deleted item at once; no extra `deleted` field needed.
 - **2026-10-24 — `createdAt` from the phone's clock.** A pending `serverTimestamp()` is estimated to whole seconds, which shuffled items added offline. See open question 6 in the spec.
+- **2026-10-25 — Firestore rules before the first deploy.** `firestore.rules` holds milestone 2's rules: only the owner reads or writes `lists/{uid}` and its items, and nobody can create a list under another uid. The emulators enforce them, so every e2e test runs under them; `e2e/rules.spec.ts` checks the denials. The owner reaches items by uid rather than through the list document, because the app's item listener and writes reach the server before the list document does. Milestone 4 extends these rules to shared lists.
+- **2026-10-25 — Deployment through GitHub Actions**, so a deploy needs no computer. The workflow fetches the web config from the project; the service account key is a GitHub secret.
 - **2026-10-24 — One list per user, for now.** The list document is `lists/{uid}`, created on first sign-in with `members: { uid: true }`. Milestone 4 replaces this with a list found through its members map.
 
 ## What milestone 2 built

@@ -1,0 +1,41 @@
+# Deploys the app and the Firestore rules to the Firebase project.
+# Runs on a version tag, or by hand from the Actions tab ("Run workflow").
+# Needs the repository variable FIREBASE_PROJECT_ID and the secret
+# FIREBASE_SERVICE_ACCOUNT (a service account key, as JSON); see README.md.
+name: Deploy
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency: deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/../service-account.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Check configuration
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          test -n "$PROJECT_ID" || { echo "::error::Repository variable FIREBASE_PROJECT_ID is not set"; exit 1; }
+          test -n "$KEY" || { echo "::error::Secret FIREBASE_SERVICE_ACCOUNT is not set"; exit 1; }
+          printf '%s' "$KEY" > "$GOOGLE_APPLICATION_CREDENTIALS"
+      - run: npm ci
+      - name: Fetch the web app config
+        run: npx firebase apps:sdkconfig WEB --project "$PROJECT_ID" --json --non-interactive | node scripts/write-prod-env.mjs
+      - run: npm run build
+      - name: Deploy hosting and Firestore rules
+        run: npx firebase deploy --only hosting,firestore:rules --project "$PROJECT_ID" --non-interactive
+      - name: Remove the key
+        if: always()
+        run: rm -f "$GOOGLE_APPLICATION_CREDENTIALS"
