@@ -12,9 +12,11 @@ import {
   setCategory,
   setChecked,
   createList,
+  deleteList,
   listIn,
   MAIN_LIST,
   parseEntry,
+  restoreList,
   setMyName,
   setVisible,
   useHousehold,
@@ -61,9 +63,14 @@ function useWakeLock() {
   }, [])
 }
 
+const displayName = (user: User) => user.displayName ?? user.email ?? 'Someone'
+
+/** For people whose app has not yet recorded their name (it does on first opening this version). */
+const UNKNOWN_NAME = 'Name not known yet'
+
 export function ShoppingList({ user }: { user: User }) {
   // Only a verified address can be invited, so only that one is looked up.
-  const household = useHousehold(db, user.uid, user.emailVerified ? user.email : null)
+  const household = useHousehold(db, user.uid, user.emailVerified ? user.email : null, displayName(user))
   useWakeLock()
   if (household) return <HouseholdScreen key={household.id} household={household} user={user} />
   // Until the list is known; for someone not invited, that is all there is.
@@ -106,7 +113,14 @@ function HouseholdScreen({ household, user }: { household: Household; user: User
   const { lists, complete } = useLists(household, user.uid, info)
   const [listId, setListId] = useLastList()
   const [panel, setPanel] = useState<'lists' | 'share' | null>(null)
-  const name = user.displayName ?? user.email ?? 'Someone'
+  const [deleted, setDeleted] = useState<ListEntry | null>(null)
+  const name = displayName(user)
+
+  useEffect(() => {
+    if (!deleted) return
+    const timer = setTimeout(() => setDeleted(null), TOAST_MS)
+    return () => clearTimeout(timer)
+  }, [deleted])
 
   // Records the user's name, so others can pick them for a list.
   useEffect(() => {
@@ -150,8 +164,27 @@ function HouseholdScreen({ household, user }: { household: Household; user: User
             setListId(id)
             setPanel(null)
           }}
+          onDelete={(list) => {
+            deleteList(household, list.id)
+            setListId(MAIN_LIST)
+            setPanel(null)
+            setDeleted(list)
+          }}
           onDone={() => setPanel(null)}
         />
+      )}
+      {deleted && (
+        <div className="toast" role="status">
+          <span>Deleted {deleted.name}</span>
+          <button
+            onClick={() => {
+              restoreList(household, deleted.id)
+              setDeleted(null)
+            }}
+          >
+            Undo
+          </button>
+        </div>
       )}
       {current && (
         <Items key={current.id} household={household} list={listIn(household, current.id)} uid={user.uid} />
@@ -167,6 +200,7 @@ function ListsPanel({
   lists,
   current,
   onPick,
+  onDelete,
   onDone,
 }: {
   household: Household
@@ -175,6 +209,7 @@ function ListsPanel({
   lists: ListEntry[]
   current: ListEntry
   onPick: (id: string) => void
+  onDelete: (list: ListEntry) => void
   onDone: () => void
 }) {
   const [newName, setNewName] = useState('')
@@ -211,9 +246,15 @@ function ListsPanel({
                 disabled={p.uid === uid}
                 onChange={(event) => setVisible(household, current.id, p.uid, event.target.checked)}
               />
-              {p.name}
+              {p.name ?? UNKNOWN_NAME}
             </label>
           ))}
+          {info.people.some((p) => !p.name) && (
+            <p className="muted">Names appear once each person has opened the app since this update.</p>
+          )}
+          <button aria-label={`Delete ${current.name}`} onClick={() => onDelete(current)}>
+            Delete list
+          </button>
         </fieldset>
       )}
       <form onSubmit={create}>
@@ -245,7 +286,7 @@ function SharePanel({ household, info, onDone }: { household: Household; info: H
       <p data-testid="member-count">
         {info && (info.people.length === 1 ? 'Only you, so far' : `${info.people.length} people use these lists`)}
       </p>
-      <p data-testid="people">{info?.people.map((p) => p.name).join(', ')}</p>
+      <p data-testid="people">{info?.people.map((p) => p.name ?? UNKNOWN_NAME).join(', ')}</p>
       <ul data-testid="invites">
         {info?.invites.map(({ address, typed }) => (
           <li key={address}>

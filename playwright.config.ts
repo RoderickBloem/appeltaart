@@ -5,6 +5,9 @@ import { defineConfig } from '@playwright/test'
 // this in `firebase emulators:exec`.
 export default defineConfig({
   testDir: 'e2e',
+  // Many tests wait for a change to travel between phones through the
+  // emulator, which under a full parallel run can take several seconds.
+  expect: { timeout: 10_000 },
   use: { baseURL: 'http://127.0.0.1:4173' },
   webServer: {
     command: 'npm run build -- --mode development && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',

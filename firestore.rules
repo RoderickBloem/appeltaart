@@ -65,10 +65,11 @@ service cloud.firestore {
         && ownNameOnly()
         && request.resource.data.get('invites', []) is list
         && request.resource.data.get('invites', []).size() <= 50;
-      // An invited person joins: adds exactly themselves to `members` and
-      // removes exactly their own invitation.
+      // An invited person joins: adds exactly themselves to `members`, may
+      // record their own name, and removes exactly their own invitation.
       allow update: if signedIn() && isInvited()
-        && changes().hasOnly(['members', 'invites'])
+        && changes().hasOnly(['members', 'memberNames', 'invites'])
+        && ownNameOnly()
         && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
         && request.resource.data.members[request.auth.uid] == true
         && request.resource.data.invites.toSet() == resource.data.invites.toSet().difference([myEmail()].toSet());
@@ -108,7 +109,7 @@ service cloud.firestore {
           && validVisibleTo();
         allow update: if inHousehold()
           && request.auth.uid in resource.data.visibleTo
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'visibleTo'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'visibleTo', 'deletedAt'])
           && validVisibleTo();
 
         match /items/{itemId} {

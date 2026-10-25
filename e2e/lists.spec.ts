@@ -126,3 +126,41 @@ test('the share panel names the people in the household', async ({ browser }) =>
   await a.page.getByRole('button', { name: 'Share' }).click()
   await expect(a.page.getByTestId('people')).toHaveText(/Ann.*Ben|Ben.*Ann/)
 })
+
+test('a list can be deleted, also from the other phones, and the delete undone', async ({ browser }) => {
+  const { a, b } = await household(browser)
+  await createList(a.page, 'DIY')
+  await addItems(a.page, 'Screws')
+  await expect(liveItems(a.page)).toHaveText(['Screws'])
+  await showList(b.page, 'DIY')
+
+  await a.page.getByTestId('list-menu').click()
+  await a.page.getByRole('button', { name: 'Delete DIY' }).click()
+  await expect(a.page.getByTestId('list-menu')).toContainText('Shopping')
+  await expect(a.page.getByRole('status')).toContainText('Deleted DIY')
+  // The other phone falls back to the main list.
+  await expect(b.page.getByTestId('list-menu')).toContainText('Shopping')
+  await b.page.getByTestId('list-menu').click()
+  await expect(b.page.getByTestId('lists').getByRole('button', { name: 'DIY', exact: true })).toHaveCount(0)
+
+  await a.page.getByRole('button', { name: 'Undo' }).click()
+  await expect(b.page.getByTestId('lists').getByRole('button', { name: 'DIY', exact: true })).toBeVisible()
+  await showList(a.page, 'DIY')
+  await expect(liveItems(a.page)).toHaveText(['Screws'])
+})
+
+test('the main list cannot be deleted', async ({ page }) => {
+  await signInFresh(page)
+  await page.getByTestId('list-menu').click()
+  await expect(page.getByTestId('lists')).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Delete Shopping/ })).toHaveCount(0)
+})
+
+test('someone who has not opened the app since names were added is shown as such', async ({ page }) => {
+  const uid = await signInFresh(page, freshEmail('ann'), 'Ann')
+  await addMember(uid, `ghost-${crypto.randomUUID()}`)
+  await createList(page, 'DIY')
+  await page.getByTestId('list-menu').click()
+  await expect(whoSees(page, 'Ann')).toBeVisible()
+  await expect(whoSees(page, 'Name not known yet')).toBeVisible()
+})

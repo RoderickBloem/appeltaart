@@ -97,6 +97,8 @@ At the maintainer's request; design in the spec, open question 18.
 
 - The list name at the top left opens a menu: pick a list, create one, and tick who sees the current one (everyone, at first; you cannot untick yourself). The main list, "Shopping", is everyone's.
 - The phone remembers the last list it showed.
+- A list can be deleted from the menu (not the main one), with Undo.
+- Each person's name is recorded when they join and when they open the app; until then they show as "Name not known yet". The first version showed "Someone", which the maintainer found confusing.
 - Categories and learned products are shared by all lists.
 - Nobody gets in without an invitation (open question 19); someone not invited sees only their name and Sign out.
 - No data moved: the existing document `lists/{uid}` of the maintainer holds the people, invitations and products, its `items` are the main list, and further lists live under it at `lists/{uid}/lists/{id}`.

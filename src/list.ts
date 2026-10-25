@@ -294,9 +294,14 @@ export function withdrawInvite(list: List, address: string) {
   report(updateDoc(list, 'invites', arrayRemove(address), new FieldPath('invitedAs', address), deleteField()))
 }
 
-/** Joins a list the user is invited to: adds them, uses up the invitation. */
-function join(list: List, uid: string, email: string) {
-  report(updateDoc(list, new FieldPath('members', uid), true, 'invites', arrayRemove(email)))
+/**
+ * Joins the lists the user is invited to: adds them, records their name for
+ * the others, and uses up the invitation.
+ */
+function join(list: List, uid: string, email: string, name: string) {
+  report(
+    updateDoc(list, new FieldPath('members', uid), true, new FieldPath('memberNames', uid), name, 'invites', arrayRemove(email)),
+  )
 }
 
 /**
@@ -315,7 +320,7 @@ function chooseHousehold(households: QueryDocumentSnapshot<DocumentData>[]): str
  * The shared document the user is in, `undefined` until known (and for
  * someone not invited, for good). Joins it when the user is invited.
  */
-export function useHousehold(db: Firestore, uid: string, email: string | null): Household | undefined {
+export function useHousehold(db: Firestore, uid: string, email: string | null, name: string): Household | undefined {
   const [household, setHousehold] = useState<Household | undefined>(undefined)
 
   useEffect(() => {
@@ -337,18 +342,19 @@ export function useHousehold(db: Firestore, uid: string, email: string | null): 
     const address = normaliseEmail(email)
     const invitations = query(collection(db, 'lists'), where('invites', 'array-contains', address))
     const stopInvited = onSnapshot(invitations, (snapshot) => {
-      for (const d of snapshot.docs) if (!d.metadata.hasPendingWrites) join(d.ref, uid, address)
+      for (const d of snapshot.docs) if (!d.metadata.hasPendingWrites) join(d.ref, uid, address, name)
     })
     return () => {
       stopMine()
       stopInvited()
     }
-  }, [db, uid, email])
+  }, [db, uid, email, name])
 
   return household
 }
 
-export type Person = { uid: string; name: string }
+/** `name` is undefined for someone whose app has not recorded it yet. */
+export type Person = { uid: string; name?: string }
 
 const DEFAULT_MAIN_NAME = 'Shopping'
 
@@ -371,8 +377,9 @@ export function useHouseholdInfo(household: Household): HouseholdInfo | undefine
           typed: (data.invitedAs?.[address] as string | undefined) ?? address,
         }))
         const people = Object.keys(data.members ?? {})
-          .map((uid) => ({ uid, name: (data.memberNames?.[uid] as string | undefined) ?? 'Someone' }))
-          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((uid) => ({ uid, name: data.memberNames?.[uid] as string | undefined }))
+          // Named people first, by name.
+          .sort((a, b) => (a.name ?? '\uffff').localeCompare(b.name ?? '\uffff'))
         setInfo({ people, invites, mainListName: data.mainListName ?? DEFAULT_MAIN_NAME })
       }),
     [household],
@@ -430,7 +437,11 @@ export function useLists(
           (snapshot) =>
             setOthers(
               snapshot.docs
-                .map((d) => ({ id: d.id, name: d.data().name as string, visibleTo: Object.keys(d.data().visibleTo ?? {}) }))
+                .map((d) => ({ id: d.id, data: d.data({ serverTimestamps: 'estimate' }) }))
+                // Deleted lists are dropped here, not in the query, for the
+                // reason in watchItems.
+                .filter(({ data }) => data.deletedAt == null)
+                .map(({ id, data }) => ({ id, name: data.name as string, visibleTo: Object.keys(data.visibleTo ?? {}) }))
                 .sort((a, b) => a.name.localeCompare(b.name)),
             ),
           onError,
@@ -458,6 +469,18 @@ export function createList(household: Household, uid: string, name: string, visi
     }),
   )
   return ref.id
+}
+
+/**
+ * Deletes a list (not the main one) for everyone. Like an item, it is only
+ * marked deleted, so the delete can be undone.
+ */
+export function deleteList(household: Household, listId: string) {
+  report(updateDoc(listIn(household, listId), { deletedAt: serverTimestamp() }))
+}
+
+export function restoreList(household: Household, listId: string) {
+  report(updateDoc(listIn(household, listId), { deletedAt: null }))
 }
 
 /** Shows a list (not the main one) to someone in the household, or stops showing it. */
