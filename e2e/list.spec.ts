@@ -66,7 +66,7 @@ test('delete is soft: the item leaves the list and stays on the server as a tomb
   ])
 })
 
-// Open question 2 in docs/spec.md: deletedAt is a pending server timestamp
+// Decision 2 in docs/spec.md: deletedAt is a pending server timestamp
 // while offline. The live-items query must not keep matching it as null.
 test('an offline delete leaves the live list at once, also after a restart', async ({ page, context }) => {
   const uid = await signInFresh(page)

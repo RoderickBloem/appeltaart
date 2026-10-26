@@ -65,7 +65,7 @@ function useLasting(value: boolean, ms: number): boolean {
 const UNSYNCED_MS = 2_000
 
 /** One list: the input with its suggestions, the live items, and the checked ones. */
-export function Items({ household, list, uid }: { household: Household; list: List; uid: string }) {
+export function ItemList({ household, list, uid }: { household: Household; list: List; uid: string }) {
   const { items, pending } = useItems(list)
   const unsynced = useLasting(pending, UNSYNCED_MS)
   const products = useProducts(household)

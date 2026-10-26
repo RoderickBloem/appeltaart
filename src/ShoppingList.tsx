@@ -2,7 +2,7 @@ import { signOut, type User } from 'firebase/auth'
 import { useEffect, useState } from 'react'
 import { auth, db } from './firebase'
 import { setMyName, useHousehold, useHouseholdInfo, type Household } from './household'
-import { Items } from './Items'
+import { ItemList } from './ItemList'
 import { deleteList, listIn, MAIN_LIST, restoreList, useLists } from './lists'
 import { ListsPanel } from './ListsPanel'
 import { SharePanel } from './SharePanel'
@@ -111,7 +111,7 @@ function ListScreen({ household, user }: { household: Household; user: User }) {
           onDone={() => setPanel(null)}
         />
       )}
-      {current && <Items key={current.id} household={household} list={listIn(household, current.id)} uid={user.uid} />}
+      {current && <ItemList key={current.id} household={household} list={listIn(household, current.id)} uid={user.uid} />}
       {toast}
     </main>
   )

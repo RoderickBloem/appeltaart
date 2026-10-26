@@ -19,7 +19,7 @@ service cloud.firestore {
 
     // Lower case; for Gmail also without dots and +suffix, as Gmail delivers
     // j.doe+shop@gmail.com to jdoe@gmail.com. Same as normaliseEmail() in
-    // src/list.ts.
+    // src/household.ts.
     function normaliseEmail(email) {
       let lower = email.lower();
       let parts = lower.split('@');
