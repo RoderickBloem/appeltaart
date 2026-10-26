@@ -22,17 +22,8 @@ import {
   type Firestore,
 } from 'firebase/firestore'
 import { app as mainApp } from './firebase'
-import {
-  addItem,
-  clearChecked,
-  deleteItem,
-  listRef,
-  renameItem,
-  setChecked,
-  watchItems,
-  type Item,
-  type List,
-} from './list'
+import { householdRef } from './household'
+import { addItem, clearChecked, deleteItem, renameItem, setChecked, watchItems, type Item, type List } from './items'
 
 /** What a client shows, or what the server holds, for comparison. */
 export type ItemView = { id: string; name: string; normName: string; checked: boolean }
@@ -104,14 +95,14 @@ async function open(scenario: string, email: string, offline: boolean): Promise<
     await signInWithCredential(auth, credential)
   }
   const uid = auth.currentUser!.uid
-  client = { app, db, list: listRef(db, uid), uid, items: [], synced: false, offline, unsubscribe: () => {} }
+  client = { app, db, list: householdRef(db, uid), uid, items: [], synced: false, offline, unsubscribe: () => {} }
   return uid
 }
 
 /** Starts listening to the items of `listId`, as the app's list screen does. */
 function watch(listId: string) {
   const c = current()
-  c.list = listRef(c.db, listId)
+  c.list = householdRef(c.db, listId)
   c.unsubscribe = watchItems(c.list, (items, metadata) => {
     c.items = items
     c.synced = !metadata.fromCache && !metadata.hasPendingWrites

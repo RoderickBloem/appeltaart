@@ -1,8 +1,6 @@
 import { normalise } from './normalise'
+import type { Product } from './products'
 import { SEED_PRODUCTS } from './seed'
-
-/** What the list has learned about a product (lists/{id}/products). */
-export type Product = { name: string; normName: string; categoryId?: string; uses: number }
 
 const seedByName = new Map(SEED_PRODUCTS.map((p) => [normalise(p.name), p]))
 

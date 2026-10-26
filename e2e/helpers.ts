@@ -110,7 +110,7 @@ export async function serverDocs(listId: string): Promise<ServerDoc[]> {
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
-/** The items of the user's own list (milestone 2: the list id is the uid), by name. */
+/** The items of a test user's own list, whose id is their uid, by name. */
 export async function serverItems(uid: string): Promise<ServerItem[]> {
   return (await serverDocs(uid))
     .map(({ name, checked, deleted }) => ({ name, checked, deleted }))

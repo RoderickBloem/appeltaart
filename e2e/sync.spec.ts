@@ -227,7 +227,7 @@ test.describe('sync properties', () => {
     // Phone 0's add reached the server but its confirmation did not reach
     // phone 0, which went offline. Phone 2 cleared the item; phone 0 re-sent
     // the add on reconnect and brought it back. Fixed by an add that writes
-    // neither checked nor deletedAt (open question 9).
+    // neither checked nor deletedAt (decision 9 in docs/spec.md).
     'a re-sent add does not bring back a cleared item': [
       { client: 0, op: { kind: 'add', name: 'Milk' } },
       { client: 2, op: { kind: 'add', name: 'milk' } },

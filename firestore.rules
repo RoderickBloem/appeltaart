@@ -1,19 +1,16 @@
 rules_version = '2';
 
-// A household is a document in `lists/` (the name is historical: it began as
-// a single list). Its `members` map holds the household's uids. No client
-// creates a household; the one in use was made before that rule, and others
-// only with admin rights. Any member can invite someone by adding their
-// address to `invites`; the invited person's app then adds them to `members`
-// when they sign in with that address. Nobody can add anyone else to
-// `members`, so a household is only ever joined by invitation, and someone
-// without one gets no data at all.
+// One shared document, lists/{householdId}, holds the people who use the
+// app (`members`, their names in `memberNames`), invitations, and learned
+// products; its own `items` are the main list, which everyone sees. (It is
+// in `lists/` because it began as the only list; src/household.ts.)
+// Further lists are lists/{householdId}/lists/{listId}, each with its items
+// under it and a `visibleTo` map of the members who see it.
 //
-// The household's items, at lists/{householdId}/items, are its main list,
-// which every member sees. Further lists are lists/{householdId}/lists/{id},
-// each with its items under it and a `visibleTo` map of the members who see
-// it. Learned products, at lists/{householdId}/products, belong to the
-// household and so are shared by all its lists.
+// No client creates the shared document. Any member can invite someone by
+// adding their address to `invites`; the invited person's app then adds them
+// to `members` when they sign in with that address. Nobody can add anyone
+// else, so someone without an invitation gets no data at all.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -54,14 +51,13 @@ service cloud.firestore {
           .diff(resource.data.get('memberNames', {})).affectedKeys().hasOnly([request.auth.uid]);
       }
 
-      // The app finds its household with where('members.<uid>', '==', true)
+      // The app finds the shared document with where('members.<uid>', '==', true)
       // and its invitations with where('invites', 'array-contains', <own address>).
       allow read: if signedIn() && (isMember() || isInvited());
-      // Members may rename the household and its main list, invite or
-      // withdraw invitations, and set their own name. `invites` holds
-      // normalised addresses; `invitedAs` the same as typed.
+      // Members may invite or withdraw invitations, and set their own name.
+      // `invites` holds normalised addresses; `invitedAs` the same as typed.
       allow update: if signedIn() && isMember()
-        && changes().hasOnly(['name', 'mainListName', 'invites', 'invitedAs', 'memberNames'])
+        && changes().hasOnly(['invites', 'invitedAs', 'memberNames'])
         && ownNameOnly()
         && request.resource.data.get('invites', []) is list
         && request.resource.data.get('invites', []).size() <= 50;

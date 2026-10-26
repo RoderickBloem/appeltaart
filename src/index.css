@@ -33,38 +33,18 @@ body {
   background: var(--bg);
 }
 
-.screen {
-  min-height: 100dvh;
-  padding: max(8px, env(safe-area-inset-top)) 12px max(8px, env(safe-area-inset-bottom));
-}
-
-.center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  text-align: center;
-}
-
-.bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 h1 {
   margin: 0;
   font-size: 1.5rem;
 }
 
-.bar h1 {
-  font-size: 1.15rem;
+.muted {
+  color: var(--muted);
 }
 
-/* Touch targets of 44px: big enough one-handed in a shop, small enough that
-   about fifteen items fit on a phone screen. */
+/* Controls. Touch targets of 44px: big enough one-handed in a shop, small
+   enough that about fifteen items fit on a phone screen. */
+
 button {
   min-height: 44px;
   min-width: 44px;
@@ -82,16 +62,139 @@ button.primary {
   color: var(--accent-text);
 }
 
+input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+/* Screens. */
+
+.screen {
+  min-height: 100dvh;
+  padding: max(8px, env(safe-area-inset-top)) 12px max(8px, env(safe-area-inset-bottom));
+}
+
+/* The sign-in screen. */
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+}
+
+/* The top bar: list menu, name, Share, Sign out. */
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bar .list-menu {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+  border: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.list-menu span,
 .who {
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 0.85rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Pinned at the top so it is always in reach. */
+.who {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* The list menu and the share panel, opened under the bar. */
+
+.panel {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.panel p {
+  margin: 4px 0;
+}
+
+.panel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.panel li,
+.panel form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel li span:first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel li button {
+  border: 0;
+}
+
+.panel form input {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel fieldset {
+  margin: 4px 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.panel fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.panel fieldset input {
+  width: 20px;
+  min-height: 20px;
+}
+
+.choices button {
+  width: 100%;
+  text-align: left;
+}
+
+.choices button[aria-current='true'] {
+  font-weight: 700;
+}
+
+/* The input, pinned at the top so it is always in reach, with the "Not
+   synced" marker and a line of suggestions under it. */
+
 .add {
   display: flex;
   flex-wrap: wrap;
@@ -105,16 +208,32 @@ button.primary {
   background: var(--bg);
 }
 
-input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
+.add input {
+  flex: 1;
+  width: auto;
 }
+
+.pending {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.suggestions {
+  display: flex;
+  flex-basis: 100%;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.suggestions button {
+  flex: none;
+  min-height: 40px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+}
+
+/* Item rows: colour bar, name and quantity (the whole of it checks), delete. */
 
 .items {
   margin: 0;
@@ -126,7 +245,6 @@ input {
   display: flex;
 }
 
-/* The whole row is the check target. */
 .items .item {
   flex: 1;
   border: 0;
@@ -135,8 +253,8 @@ input {
   text-align: left;
 }
 
-/* The category colour, as a bar at the start of the row; tapping it opens
-   the picker. Uncategorised items show an outline. */
+/* The category colour; tapping it opens the picker. Uncategorised items
+   show an outline. */
 .items .swatch {
   min-width: 32px;
   padding: 0;
@@ -166,6 +284,12 @@ input {
   font-size: 0.85rem;
 }
 
+.items .delete {
+  border: 0;
+  color: var(--muted);
+  font-size: 1.5rem;
+}
+
 .picker {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -185,12 +309,6 @@ input {
   color: #fff;
 }
 
-.items .delete {
-  border: 0;
-  color: var(--muted);
-  font-size: 1.5rem;
-}
-
 .checked {
   margin-top: 12px;
   opacity: 0.55;
@@ -204,54 +322,7 @@ input {
   margin-top: 8px;
 }
 
-.muted {
-  color: var(--muted);
-}
-
-.share {
-  margin-top: 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.share p {
-  margin: 4px 0;
-}
-
-.share ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.share li,
-.share form {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.share li span:first-child {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.share li button {
-  border: 0;
-}
-
-.share form input {
-  flex: 1;
-  min-width: 0;
-}
-
-.pending {
-  flex: none;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
+/* Undo, for a few seconds after a delete or a clear. */
 
 .toast {
   position: fixed;
@@ -272,77 +343,4 @@ input {
   border: 0;
   color: inherit;
   font-weight: 600;
-}
-
-.add input {
-  flex: 1;
-  width: auto;
-}
-
-/* One line of suggestions under the input, scrolling sideways if long. */
-.suggestions {
-  display: flex;
-  flex-basis: 100%;
-  gap: 6px;
-  overflow-x: auto;
-}
-
-.suggestions button {
-  flex: none;
-  min-height: 40px;
-  border-radius: 999px;
-  font-size: 0.9rem;
-}
-
-/* The list menu takes the title's place. */
-.bar .list-menu {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 4px;
-  border: 0;
-  font-size: 1.15rem;
-  font-weight: 700;
-  text-align: left;
-}
-
-.bar .list-menu span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.bar .who {
-  margin-left: 0;
-}
-
-.choices button {
-  width: 100%;
-  border: 0;
-  text-align: left;
-}
-
-.choices button[aria-current='true'] {
-  font-weight: 700;
-}
-
-.share fieldset {
-  margin: 4px 0;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.share fieldset label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-}
-
-.share fieldset input {
-  width: 20px;
-  min-height: 20px;
 }
