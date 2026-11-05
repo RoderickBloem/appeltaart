@@ -25,7 +25,7 @@ Every milestone of the spec's build order is built, tested against the emulators
 - `.github/workflows/deploy.yml` deploys hosting and `firestore.rules` from a ref: on a `v*` tag, or by hand (Actions > Deploy > Run workflow). A session can start it with the GitHub tools (`run_workflow`, workflow `deploy.yml`, ref `main`) and read the result from the job log, which ends with the Hosting URL.
 - The workflow reads the repository variable `FIREBASE_PROJECT_ID` and the secret `FIREBASE_SERVICE_ACCOUNT` (service account `github-deploy`, roles Firebase Admin and Service Usage Consumer). Sessions never see the key and need no other Firebase access.
 - Deploy only what the maintainer asked to have deployed: a deploy changes the app on the family's phones. Rules and app go out together, so a rules change must keep the deployed data working; no session can migrate live data.
-- Last deploy: `5ff43a0` (deleting lists, names of people not yet seen, names recorded on joining), 2026-10-25.
+- Last deploy: `d21433c` (email addresses next to names, every listener retries), 2026-11-05.
 
 ## Working on it
 
