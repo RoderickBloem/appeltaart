@@ -57,6 +57,7 @@ export function ListsPanel({
                 onChange={(event) => setVisible(household, current.id, p.uid, event.target.checked)}
               />
               {nameOf(p)}
+              {p.email && <span className="muted">{p.email}</span>}
             </label>
           ))}
           {info.people.some((p) => !p.name) && (

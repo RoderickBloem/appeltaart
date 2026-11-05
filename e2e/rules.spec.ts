@@ -173,3 +173,16 @@ test('members invite by address; only the invited person can then join, and only
   expect((await join(invitee, email, owner, invitee, ['other@gmail.com'])).status).toBe(200)
   expect((await as(invitee, `/lists/${owner}/items`)).status).toBe(200)
 })
+
+test('members record their own name and email address, nobody else\'s', async ({ page }) => {
+  const owner = await ownerWithList(page)
+  const member = fresh('member')
+  await addMember(owner, member)
+  const setEmail = (uid: string, whose: string) =>
+    as(uid, `/lists/${owner}?updateMask.fieldPaths=${encodeURIComponent(`memberEmails.\`${whose}\``)}`, {
+      method: 'PATCH',
+      body: { fields: { memberEmails: { mapValue: { fields: { [whose]: { stringValue: `${whose}@gmail.com` } } } } } },
+    })
+  expect((await setEmail(member, member)).status).toBe(200)
+  expect((await setEmail(member, owner)).status).toBe(403)
+})

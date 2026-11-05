@@ -2,7 +2,18 @@ import { useState, type FormEvent } from 'react'
 import { invite, nameOf, withdrawInvite, type Household, type HouseholdInfo } from './household'
 
 /** Who uses the app, and inviting someone by their Gmail address. */
-export function SharePanel({ household, info, onDone }: { household: Household; info: HouseholdInfo | undefined; onDone: () => void }) {
+export function SharePanel({
+  household,
+  info,
+  email: signedInAs,
+  onDone,
+}: {
+  household: Household
+  info: HouseholdInfo | undefined
+  /** The address the user is signed in with. */
+  email: string | null
+  onDone: () => void
+}) {
   const [email, setEmail] = useState('')
 
   function submit(event: FormEvent) {
@@ -16,7 +27,14 @@ export function SharePanel({ household, info, onDone }: { household: Household; 
       <p data-testid="member-count">
         {info && (info.people.length === 1 ? 'Only you, so far' : `${info.people.length} people use these lists`)}
       </p>
-      <p data-testid="people">{info?.people.map(nameOf).join(', ')}</p>
+      <ul data-testid="people">
+        {info?.people.map((p) => (
+          <li key={p.uid}>
+            <span>{nameOf(p)}</span>
+            {p.email && <span className="muted">{p.email}</span>}
+          </li>
+        ))}
+      </ul>
       <ul data-testid="invites">
         {info?.invites.map(({ address, typed }) => (
           <li key={address}>
@@ -40,6 +58,11 @@ export function SharePanel({ household, info, onDone }: { household: Household; 
         <button className="primary">Invite</button>
       </form>
       <p className="muted">They join when they sign in to Appeltaart with that address. Each list shows who sees it.</p>
+      {signedInAs && (
+        <p className="muted" data-testid="signed-in-as">
+          Signed in as {signedInAs}
+        </p>
+      )}
       <button onClick={onDone}>Done</button>
     </section>
   )

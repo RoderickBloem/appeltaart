@@ -19,7 +19,7 @@ async function phone(browser: Browser, name: string, own = true) {
   const page = await (await browser.newContext()).newPage()
   const email = freshEmail(name.toLowerCase())
   const uid = own ? await signInFresh(page, email, name) : await signIn(page, email, name)
-  return { page, uid }
+  return { page, uid, email }
 }
 
 /** Two people in one household: Ann's, which Ben is added to. */
@@ -121,10 +121,23 @@ test('categories and learned products are shared by all lists', async ({ page })
   await expect(page.getByTestId('suggestions').getByRole('button').first()).toHaveText('quinoa')
 })
 
-test('the share panel names the people in the household', async ({ browser }) => {
-  const { a } = await household(browser)
+test('the share panel shows everyone by name and email address, and who you are signed in as', async ({ browser }) => {
+  const { a, b } = await household(browser)
   await a.page.getByRole('button', { name: 'Share' }).click()
-  await expect(a.page.getByTestId('people')).toHaveText(/Ann.*Ben|Ben.*Ann/)
+  const people = a.page.getByTestId('people')
+  await expect(people).toContainText('Ann')
+  await expect(people).toContainText(a.email)
+  await expect(people).toContainText('Ben')
+  await expect(people).toContainText(b.email)
+  await expect(a.page.getByTestId('signed-in-as')).toHaveText(`Signed in as ${a.email}`)
+})
+
+test('the choice of who sees a list shows email addresses too', async ({ browser }) => {
+  const { a, b } = await household(browser)
+  await createList(a.page, 'Presents')
+  await a.page.getByTestId('list-menu').click()
+  await expect(whoSees(a.page, 'Ben')).toBeVisible()
+  await expect(a.page.getByTestId('lists')).toContainText(b.email)
 })
 
 test('a list can be deleted, also from the other phones, and the delete undone', async ({ browser }) => {

@@ -1,7 +1,7 @@
 import { signOut, type User } from 'firebase/auth'
 import { useEffect, useState } from 'react'
 import { auth, db } from './firebase'
-import { setMyName, useHousehold, useHouseholdInfo, type Household } from './household'
+import { setMyDetails, useHousehold, useHouseholdInfo, type Household } from './household'
 import { ItemList } from './ItemList'
 import { deleteList, listIn, MAIN_LIST, restoreList, useLists } from './lists'
 import { ListsPanel } from './ListsPanel'
@@ -60,10 +60,12 @@ function ListScreen({ household, user }: { household: Household; user: User }) {
   const [toast, showToast] = useUndoToast()
   const name = displayName(user)
 
-  // Records the user's name, so others can pick them for a list.
+  // Records the user's name and address, so others can tell who is who.
+  const email = user.email
   useEffect(() => {
-    if (info && !info.people.some((p) => p.uid === user.uid && p.name === name)) setMyName(household, user.uid, name)
-  }, [info, household, user.uid, name])
+    const me = info?.people.find((p) => p.uid === user.uid)
+    if (info && (me?.name !== name || (email && me?.email !== email))) setMyDetails(household, user.uid, name, email)
+  }, [info, household, user.uid, name, email])
 
   // A remembered list that is gone falls back to the main list, but only once
   // all lists are known: until then it may simply not have arrived.
@@ -90,7 +92,7 @@ function ListScreen({ household, user }: { household: Household; user: User }) {
         </button>
         <button onClick={() => signOut(auth)}>Sign out</button>
       </header>
-      {panel === 'share' && <SharePanel household={household} info={info} onDone={() => setPanel(null)} />}
+      {panel === 'share' && <SharePanel household={household} info={info} email={email} onDone={() => setPanel(null)} />}
       {panel === 'lists' && current && info && (
         <ListsPanel
           household={household}

@@ -32,6 +32,7 @@ The shared document:
 | --- | --- | --- |
 | `members` | map of uid to `true` | Who uses the app; the rules check it |
 | `memberNames` | map of uid to string | Display names; each person's app records its own |
+| `memberEmails` | map of uid to string | The address each person signed in with; recorded the same way |
 | `invites` | array of string | Pending invitations, normalised: lower case, Gmail without dots and `+suffix` |
 | `invitedAs` | map of normalised address to string | The same addresses as typed, for showing |
 | `createdAt` | timestamp | |
@@ -94,7 +95,7 @@ The local cache is the source of truth for the interface. The UI never waits on 
 - One `onSnapshot` listener per list, rendered regardless of `metadata.fromCache`, so a cold start with no signal shows the list.
 - Writes are never awaited; Firestore's promise resolves only on server confirmation.
 - "Not synced" shows once a change has waited more than two seconds for the server.
-- A listener the rules refuse, for example on a list just created whose document has not reached the server, retries every 1.5 seconds.
+- Every listener retries 1.5 seconds after an error, for example when the rules refuse it on a list just created whose document has not reached the server yet.
 - The service worker caches the app shell, so the app opens with no network at all.
 
 ## People and security rules
@@ -107,7 +108,7 @@ Nobody gets in without an invitation (decision 19). Any member can invite someon
 
 - Only members read the shared document; an invited person may read it to join.
 - No client creates the shared document.
-- Members may change only `invites`, `invitedAs` and their own entry in `memberNames`.
+- Members may change only `invites`, `invitedAs` and their own entries in `memberNames` and `memberEmails`.
 - An invited person, with a verified address that matches, may add exactly themselves to `members` and remove exactly their own invitation.
 - Items and products of the main list: members only. Further lists and their items: members in that list's `visibleTo`, which may name only members and must include whoever changes it.
 - No client deletes a document outright.
@@ -185,3 +186,4 @@ Numbered as they were taken; the code refers to them by number.
 17. **Seed dictionary in English**; another language is a matter of adding names. The maintainer will provide a list from their supermarket.
 18. **Multiple lists** (2026-10-25, the maintainer). One group of people, invitations in one place, each list shown to the people picked for it, a menu to pick the list, categories and products shared by all lists. Built without moving data: the document that held the one list holds the people, invitations and products, and its items are the main list.
 19. **Invitation only** (2026-10-25, the maintainer). The app no longer creates a list document for a new account, and the rules forbid it; someone not invited sees only their name and Sign out. Firebase cannot refuse a Google sign-in without a server-side function, so the rules simply give such an account no data.
+20. **Email addresses next to names; every listener retries** (2026-11-05). After a reboot, a family member's phone showed an empty list of her own: an old document from before invitation-only (decision 11), although she was still on the shared one. The cause was not found; the likeliest is that the search for her lists failed once and, without a retry, the phone kept what it had found until then. That search now retries like the other listeners, and the old document was deleted in the console. The Share panel and the "who sees it" choices now show each person's address as well as their name, and the Share panel the address the user is signed in with, so a wrong account or an unknown entry is easy to tell.

@@ -99,8 +99,8 @@ input {
 }
 
 .bar .list-menu {
-  flex: 1;
-  min-width: 0;
+  flex: 1 0 auto;
+  max-width: 50%;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -121,6 +121,18 @@ input {
 .who {
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+/* With little room, the user's name gives way first, then the list's name;
+   the buttons never do. */
+.bar > button:not(.list-menu) {
+  flex: none;
+  white-space: nowrap;
+}
+/* With little room, the user's name gives way before the list's name. */
+.bar .who {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 /* The list menu and the share panel, opened under the bar. */
@@ -157,6 +169,15 @@ input {
 
 .panel li button {
   border: 0;
+}
+
+/* Email addresses next to names, and "invited" next to an address. */
+.panel li .muted,
+.panel label .muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
 }
 
 .panel form input {

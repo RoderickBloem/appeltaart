@@ -1,6 +1,6 @@
 import { collection, doc, increment, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
-import { report } from './firestoreHelpers'
+import { keepListening, report } from './firestoreHelpers'
 import type { Household } from './household'
 import { normalise } from './normalise'
 
@@ -32,14 +32,20 @@ export function useProducts(household: Household): Map<string, Product> | undefi
   const [products, setProducts] = useState<Map<string, Product> | undefined>(undefined)
   useEffect(
     () =>
-      onSnapshot(collection(household, 'products'), (snapshot) => {
-        const known = new Map<string, Product>()
-        for (const d of snapshot.docs) {
-          const { name, normName, categoryId, uses } = d.data()
-          known.set(normName, { name, normName, categoryId, uses: uses ?? 0 })
-        }
-        setProducts(known)
-      }),
+      keepListening((onError) =>
+        onSnapshot(
+          collection(household, 'products'),
+          (snapshot) => {
+            const known = new Map<string, Product>()
+            for (const d of snapshot.docs) {
+              const { name, normName, categoryId, uses } = d.data()
+              known.set(normName, { name, normName, categoryId, uses: uses ?? 0 })
+            }
+            setProducts(known)
+          },
+          onError,
+        ),
+      ),
     [household],
   )
   return products

@@ -16,11 +16,11 @@ import {
   type Timestamp,
 } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
-import { report } from './firestoreHelpers'
+import { keepListening, report } from './firestoreHelpers'
 
 /**
  * The shared document: the people who use the app (`members`, with their
- * names in `memberNames`), invitations, and what they have learned about
+ * names and addresses in `memberNames` and `memberEmails`), invitations, and what they have learned about
  * products. Its own `items` are the main list. Stored in `lists/` because it
  * began as the only list. The app does not show it as a thing of its own.
  */
@@ -28,8 +28,8 @@ export type Household = DocumentReference
 
 export const householdRef = (db: Firestore, id: string): Household => doc(db, 'lists', id)
 
-/** `name` is undefined for someone whose app has not recorded it yet. */
-export type Person = { uid: string; name?: string }
+/** `name` and `email` are undefined for someone whose app has not recorded them yet. */
+export type Person = { uid: string; name?: string; email?: string }
 
 export const nameOf = (person: Person) => person.name ?? 'Name not known yet'
 
@@ -60,16 +60,30 @@ export function withdrawInvite(household: Household, address: string) {
   report(updateDoc(household, 'invites', arrayRemove(address), new FieldPath('invitedAs', address), deleteField()))
 }
 
-/** Adds the user, records their name for the others, and uses up the invitation. */
-function join(household: Household, uid: string, address: string, name: string) {
+/** Adds the user, records their name and address for the others, and uses up the invitation. */
+function join(household: Household, uid: string, email: string, name: string) {
   report(
-    updateDoc(household, new FieldPath('members', uid), true, new FieldPath('memberNames', uid), name, 'invites', arrayRemove(address)),
+    updateDoc(
+      household,
+      new FieldPath('members', uid),
+      true,
+      new FieldPath('memberNames', uid),
+      name,
+      new FieldPath('memberEmails', uid),
+      email,
+      'invites',
+      arrayRemove(normaliseEmail(email)),
+    ),
   )
 }
 
-/** Records the user's name, so others can pick them for a list. */
-export function setMyName(household: Household, uid: string, name: string) {
-  report(updateDoc(household, new FieldPath('memberNames', uid), name))
+/** Records the user's name and address, so others can tell who is who. */
+export function setMyDetails(household: Household, uid: string, name: string, email: string | null) {
+  report(
+    email
+      ? updateDoc(household, new FieldPath('memberNames', uid), name, new FieldPath('memberEmails', uid), email)
+      : updateDoc(household, new FieldPath('memberNames', uid), name),
+  )
 }
 
 /**
@@ -94,24 +108,38 @@ export function useHousehold(db: Firestore, uid: string, email: string | null, n
   useEffect(() => {
     let chosen: string | undefined
     const mine = query(collection(db, 'lists'), where(new FieldPath('members', uid), '==', true))
-    const stopMine = onSnapshot(mine, { includeMetadataChanges: true }, (snapshot) => {
-      // A join the server has not confirmed would only have its listeners
-      // refused; wait for it. Once chosen, later pending writes do not matter.
-      const usable = snapshot.docs.filter((d) => d.id === chosen || !d.metadata.hasPendingWrites)
-      if (usable.length === 0) return
-      const id = choose(usable)
-      chosen = id
-      // Keep the same reference while the choice stands, so the listeners
-      // below it are not restarted on every change to the document.
-      setHousehold((current) => (current?.id === id ? current : householdRef(db, id)))
-    })
+    // Retried after an error: otherwise the phone would keep whatever it had
+    // found until then, possibly only an old document of its own.
+    const stopMine = keepListening((onError) =>
+      onSnapshot(
+        mine,
+        { includeMetadataChanges: true },
+        (snapshot) => {
+          // A join the server has not confirmed would only have its listeners
+          // refused; wait for it. Once chosen, later pending writes do not matter.
+          const usable = snapshot.docs.filter((d) => d.id === chosen || !d.metadata.hasPendingWrites)
+          if (usable.length === 0) return
+          const id = choose(usable)
+          chosen = id
+          // Keep the same reference while the choice stands, so the listeners
+          // below it are not restarted on every change to the document.
+          setHousehold((current) => (current?.id === id ? current : householdRef(db, id)))
+        },
+        onError,
+      ),
+    )
     if (!email) return stopMine
 
-    const address = normaliseEmail(email)
-    const invitations = query(collection(db, 'lists'), where('invites', 'array-contains', address))
-    const stopInvited = onSnapshot(invitations, (snapshot) => {
-      for (const d of snapshot.docs) if (!d.metadata.hasPendingWrites) join(d.ref, uid, address, name)
-    })
+    const invitations = query(collection(db, 'lists'), where('invites', 'array-contains', normaliseEmail(email)))
+    const stopInvited = keepListening((onError) =>
+      onSnapshot(
+        invitations,
+        (snapshot) => {
+          for (const d of snapshot.docs) if (!d.metadata.hasPendingWrites) join(d.ref, uid, email, name)
+        },
+        onError,
+      ),
+    )
     return () => {
       stopMine()
       stopInvited()
@@ -133,17 +161,28 @@ export function useHouseholdInfo(household: Household): HouseholdInfo | undefine
   const [info, setInfo] = useState<HouseholdInfo | undefined>(undefined)
   useEffect(
     () =>
-      onSnapshot(household, (snapshot) => {
-        const data = snapshot.data() ?? {}
-        const invites = ((data.invites ?? []) as string[]).map((address) => ({
-          address,
-          typed: (data.invitedAs?.[address] as string | undefined) ?? address,
-        }))
-        const people = Object.keys(data.members ?? {})
-          .map((uid) => ({ uid, name: data.memberNames?.[uid] as string | undefined }))
-          .sort((a, b) => (a.name ?? '￿').localeCompare(b.name ?? '￿'))
-        setInfo({ people, invites })
-      }),
+      keepListening((onError) =>
+        onSnapshot(
+          household,
+          (snapshot) => {
+            const data = snapshot.data() ?? {}
+            const invites = ((data.invites ?? []) as string[]).map((address) => ({
+              address,
+              typed: (data.invitedAs?.[address] as string | undefined) ?? address,
+            }))
+            const people = Object.keys(data.members ?? {})
+              .map((uid) => ({
+                uid,
+                name: data.memberNames?.[uid] as string | undefined,
+                email: data.memberEmails?.[uid] as string | undefined,
+              }))
+              // Named people first, by name.
+              .sort((a, b) => (a.name ?? '\uffff').localeCompare(b.name ?? '\uffff'))
+            setInfo({ people, invites })
+          },
+          onError,
+        ),
+      ),
     [household],
   )
   return info
