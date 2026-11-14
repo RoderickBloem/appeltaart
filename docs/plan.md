@@ -36,10 +36,12 @@ Every milestone of the spec's build order is built, tested against the emulators
 
 ## Feature requests
 
-- **A seed list from the maintainer's supermarket.** The maintainer will provide product names and categories, and the order in which the shop's categories come; they replace or extend `src/seed.ts` and the order in `src/categories.ts`.
+- **A seed list from the maintainer's supermarket.** The categories now follow the shop's aisles (spec, decision 21); product names from the shop could still replace or extend the English `src/seed.ts`.
 
 Possible later, if missed in use: editing categories in the app (names, colours, order); renaming a list; tapping a quantity to edit it; swipe-to-delete; removing a person from the app (now only in the console, and what the removed person's app then does is untested).
 
 ## Still open
+
+- **The popup sign-in test fails** (`e2e/popup.spec.ts`, since 2026-11-14 or a little earlier; it passed on 2026-11-05). In the emulator's account chooser, the email field stays hidden after "Add new account", and choosing an existing account closes the popup without signing in. It fails the same way on older commits, so something outside the code changed, probably the scripts the chooser loads from Google. Real sign-in on the live app is not affected by this test; check it on a phone.
 
 - **Purging deleted items.** Items and lists are only marked deleted, so undo works. The items query loads at most 2000 items, deleted ones included; at a few hundred deletions a month, that is reached within a year. Needed: a script that removes items deleted more than 30 days ago, with admin rights, for example as a monthly GitHub Action.

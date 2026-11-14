@@ -10,7 +10,7 @@ test('a delete can be undone from the toast', async ({ page }) => {
   await expect(page.getByRole('status')).toContainText('Deleted Milk')
 
   await page.getByRole('button', { name: 'Undo' }).click()
-  await expect(liveItems(page)).toHaveText(['Bread', 'Milk'])
+  await expect(liveItems(page)).toHaveText(['Milk', 'Bread'])
   await expect(page.getByRole('status')).toHaveCount(0)
   await expect.poll(async () => (await serverDocs(uid)).every((i) => !i.deleted)).toBe(true)
 })
@@ -63,7 +63,7 @@ test('the same product added on two phones shows as one row, and one tap checks 
   await expect.poll(async () => (await serverDocs(aUid)).filter((i) => i.normName === 'milk').length).toBe(2)
 
   for (const page of [a, b]) {
-    await expect(liveItems(page)).toHaveText(['Bread', /^milk$/i])
+    await expect(liveItems(page)).toHaveText([/^milk$/i, 'Bread'])
     await expect(row(page, 'Milk').or(row(page, 'milk')).getByTestId('item-quantity')).toHaveText('1, 2 l')
   }
   await liveItems(a).filter({ hasText: /milk/i }).click()

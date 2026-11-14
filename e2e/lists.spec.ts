@@ -106,11 +106,11 @@ test('categories and learned products are shared by all lists', async ({ page })
   await signInFresh(page)
   await createList(page, 'DIY')
   await addItems(page, 'Quinoa')
-  await setCategory(page, 'Quinoa', 'Pantry')
+  await setCategory(page, 'Quinoa', 'Rice, pasta & spirits')
 
   await showList(page, 'Shopping')
   await addItems(page, 'quinoa')
-  await expect(row(page, 'quinoa')).toHaveAttribute('data-category', 'pantry')
+  await expect(row(page, 'quinoa')).toHaveAttribute('data-category', 'pasta')
   // And the product is suggested on every list.
   await showList(page, 'DIY')
   await page.getByLabel('New item').fill('qui')

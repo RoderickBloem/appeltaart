@@ -49,8 +49,8 @@ test('a member invites someone by Gmail address, who joins on signing in and can
   const c = await phone(browser, cEmail, false)
   await expect(liveItems(c.page)).toHaveText(['Milk'])
   await addItems(c.page, 'Bread')
-  await expect(liveItems(a.page)).toHaveText(['Bread', 'Milk'])
-  await expect(liveItems(b.page)).toHaveText(['Bread', 'Milk'])
+  await expect(liveItems(a.page)).toHaveText(['Milk', 'Bread'])
+  await expect(liveItems(b.page)).toHaveText(['Milk', 'Bread'])
 })
 
 test('a Gmail invitation ignores dots and a +suffix, as Gmail does', async ({ browser }) => {
@@ -100,7 +100,7 @@ test('someone with an older household of their own sees the shared one once adde
   await expect(liveItems(b.page)).toHaveText(['Milk'])
 
   await addItems(b.page, 'Bread')
-  await expect(liveItems(a.page)).toHaveText(['Bread', 'Milk'])
+  await expect(liveItems(a.page)).toHaveText(['Milk', 'Bread'])
 })
 
 test('three phones make conflicting edits offline and end with the same list', async ({ browser }) => {
@@ -110,11 +110,11 @@ test('three phones make conflicting edits offline and end with the same list', a
   await addMember(a.uid, b.uid)
   await addMember(a.uid, c.uid)
   await addItems(a.page, 'Milk', 'Bread', 'Eggs')
-  for (const { page } of phones) await expect(liveItems(page)).toHaveText(['Bread', 'Milk', 'Eggs'])
+  for (const { page } of phones) await expect(liveItems(page)).toHaveText(['Milk', 'Eggs', 'Bread'])
 
   // Online, a change reaches the others within a moment.
   await addItems(b.page, 'Butter')
-  for (const { page } of phones) await expect(liveItems(page)).toHaveText(['Bread', 'Milk', 'Eggs', 'Butter'])
+  for (const { page } of phones) await expect(liveItems(page)).toHaveText(['Milk', 'Butter', 'Eggs', 'Bread'])
 
   for (const { context } of phones) await context.setOffline(true)
 
@@ -132,7 +132,7 @@ test('three phones make conflicting edits offline and end with the same list', a
   await b.page.close({ runBeforeUnload: false })
   b.page = await b.context.newPage()
   await b.page.goto('/')
-  await expect(liveItems(b.page)).toHaveText(['Bread', 'Butter'])
+  await expect(liveItems(b.page)).toHaveText(['Butter', 'Bread'])
   await expect(checkedItems(b.page)).toHaveText(['Eggs'])
 
   // Back online one at a time.
@@ -142,7 +142,7 @@ test('three phones make conflicting edits offline and end with the same list', a
   }
 
   for (const { page } of phones) {
-    await expect(liveItems(page)).toHaveText(['Apples', 'Bread', 'Butter', 'Coffee'])
+    await expect(liveItems(page)).toHaveText(['Apples', 'Butter', 'Coffee', 'Bread'])
     await expect(checkedItems(page)).toHaveCount(0)
   }
 })

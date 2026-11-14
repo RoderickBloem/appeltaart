@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
-import { CATEGORIES, category, categoryOrder } from './categories'
+import { CATEGORIES, category, categoryOrder, currentCategory } from './categories'
 import { categoryFor, suggest } from './dictionary'
 import type { Household } from './household'
 import {
@@ -38,7 +38,7 @@ function groupItems(items: Item[], products: Map<string, Product> | undefined): 
     name: members[0].name,
     checked: members.every((i) => i.checked),
     quantity: [...new Set(members.flatMap((i) => (i.quantity ? [i.quantity] : [])))].join(', '),
-    categoryId: members.find((i) => i.categoryId)?.categoryId ?? categoryFor(products, key),
+    categoryId: members.map((i) => currentCategory(i.categoryId)).find(Boolean) ?? categoryFor(products, key),
   }))
   // A stable sort, so within a category the order they were added in stays.
   return grouped.sort((a, b) => categoryOrder(a.categoryId) - categoryOrder(b.categoryId))

@@ -1,3 +1,4 @@
+import { currentCategory } from './categories'
 import { normalise } from './normalise'
 import type { Product } from './products'
 import { SEED_PRODUCTS } from './seed'
@@ -6,7 +7,7 @@ const seedByName = new Map(SEED_PRODUCTS.map((p) => [normalise(p.name), p]))
 
 /** The category for a product: what the list learned, else the seed list's. */
 export function categoryFor(products: Map<string, Product> | undefined, normName: string): string | undefined {
-  return products?.get(normName)?.categoryId ?? seedByName.get(normName)?.categoryId
+  return currentCategory(products?.get(normName)?.categoryId) ?? seedByName.get(normName)?.categoryId
 }
 
 const MIN_LETTERS = 2

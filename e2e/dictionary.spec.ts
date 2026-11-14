@@ -52,13 +52,13 @@ test('products this list has used come first, the most used first', async ({ pag
 test("the list's own category beats the seed list's", async ({ page }) => {
   await signInFresh(page)
   await addItems(page, 'Tomatoes')
-  await setCategory(page, 'Tomatoes', 'Pantry')
+  await setCategory(page, 'Tomatoes', 'Rice, pasta & spirits')
   await page.getByRole('button', { name: 'Delete Tomatoes' }).click()
   await expect(row(page, 'Tomatoes')).toHaveCount(0)
 
   await typeOnly(page, 'tom')
   await suggestions(page).first().click()
-  await expect(row(page, 'Tomatoes')).toHaveAttribute('data-category', 'pantry')
+  await expect(row(page, 'Tomatoes')).toHaveAttribute('data-category', 'pasta')
 })
 
 test('a suggestion keeps the quantity typed after the colon', async ({ page }) => {

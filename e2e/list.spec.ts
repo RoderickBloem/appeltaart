@@ -6,7 +6,7 @@ test('items are added, sorted in shop order, and the field stays focused', async
   await addItems(page, 'Milk', 'Bread', 'Äpfel')
 
   // Bread and milk get their categories from the seed list; Äpfel has none.
-  await expect(liveItems(page)).toHaveText(['Bread', 'Milk', 'Äpfel'])
+  await expect(liveItems(page)).toHaveText(['Milk', 'Bread', 'Äpfel'])
   await expect(page.getByLabel('New item')).toBeFocused()
   await expect(page.getByLabel('New item')).toHaveValue('')
   await expect.poll(() => serverItems(uid)).toEqual([
@@ -32,7 +32,7 @@ test('tapping a row checks it, tapping a checked row unchecks it', async ({ page
   await expect.poll(async () => (await serverItems(uid)).find((i) => i.name === 'Milk')?.checked).toBe(true)
 
   await checkedItems(page).filter({ hasText: 'Milk' }).click()
-  await expect(liveItems(page)).toHaveText(['Bread', 'Milk'])
+  await expect(liveItems(page)).toHaveText(['Milk', 'Bread'])
   await expect(checkedItems(page)).toHaveCount(0)
   await expect.poll(async () => (await serverItems(uid)).find((i) => i.name === 'Milk')?.checked).toBe(false)
 })
@@ -96,14 +96,14 @@ test('offline changes survive a force-quit and sync when back online', async ({ 
   await addItems(page, 'Eggs', 'Butter')
   await liveItems(page).filter({ hasText: 'Bread' }).click()
   await page.getByRole('button', { name: 'Delete Milk' }).click()
-  await expect(liveItems(page)).toHaveText(['Eggs', 'Butter'])
+  await expect(liveItems(page)).toHaveText(['Butter', 'Eggs'])
 
   // Closing the page without any shutdown is as close to a force-quit as a
   // browser gets; the IndexedDB data lives on in the browser context.
   await page.close({ runBeforeUnload: false })
   page = await context.newPage()
   await page.goto('/')
-  await expect(liveItems(page)).toHaveText(['Eggs', 'Butter'])
+  await expect(liveItems(page)).toHaveText(['Butter', 'Eggs'])
   await expect(checkedItems(page)).toHaveText(['Bread'])
   expect(await serverItems(uid)).toEqual([
     { name: 'Bread', checked: false, deleted: false },

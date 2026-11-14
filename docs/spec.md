@@ -57,7 +57,7 @@ An item:
 | `createdAt` | timestamp | From the phone's clock; orders the list within a category (decision 6) |
 | `updatedAt` | timestamp | `serverTimestamp()`, set on every write |
 | `createdBy` | string | uid |
-| `categoryId` | string, optional | One of the categories in `src/categories.ts` |
+| `categoryId` | string, optional | One of the categories in `src/categories.ts`; ids from before decision 21 are read in their new meaning |
 | `quantity` | string, optional | Free text: "6", "ripe", "2 kg" |
 
 A product, keyed by its URI-encoded `normName`: `name` (as last typed), `normName`, `categoryId`, `uses`, `lastUsed`.
@@ -128,7 +128,7 @@ One list screen, plus a sign-in screen. Live items at the top, checked items dim
 
 ## Categories, dictionary, quantities
 
-- **Categories**: eight, fixed in `src/categories.ts` with their colours, in the order of a walk through the shop; uncategorised items come last.
+- **Categories**: eight, fixed in `src/categories.ts` with their colours, one per aisle or pair of aisles of the family's supermarket, in the order of the walk through it: Fruit & vegetables, Chilled, Tins & sauces, Rice, pasta & spirits, Drinks & toiletries, Household & coffee, Bread & deli, Frozen & sweets. Uncategorised items come last.
 - **Learned products**: choosing a category for an item stores it on the product, so the next time anyone types that product, on any list, it lands in that category.
 - **Seed dictionary**: `src/seed.ts`, about 220 common groceries in English with a category, so the app helps from the first day. What the app has learned takes precedence. An item without a category of its own shows the product's category, learned or seeded.
 - **Suggestions**: the app's own products first, most used first, then the seed list, shorter names first; a name starting with the typed letters before one where a later word does. Products already on the list are left out. A suggestion keeps a quantity typed after the colon.
@@ -187,3 +187,4 @@ Numbered as they were taken; the code refers to them by number.
 18. **Multiple lists** (2026-10-25, the maintainer). One group of people, invitations in one place, each list shown to the people picked for it, a menu to pick the list, categories and products shared by all lists. Built without moving data: the document that held the one list holds the people, invitations and products, and its items are the main list.
 19. **Invitation only** (2026-10-25, the maintainer). The app no longer creates a list document for a new account, and the rules forbid it; someone not invited sees only their name and Sign out. Firebase cannot refuse a Google sign-in without a server-side function, so the rules simply give such an account no data.
 20. **Email addresses next to names; every listener retries** (2026-11-05). After a reboot, a family member's phone showed an empty list of her own: an old document from before invitation-only (decision 11), although she was still on the shared one. The cause was not found; the likeliest is that the search for her lists failed once and, without a retry, the phone kept what it had found until then. That search now retries like the other listeners, and the old document was deleted in the console. The Share panel and the "who sees it" choices now show each person's address as well as their name, and the Share panel the address the user is signed in with, so a wrong account or an unknown entry is easy to tell.
+21. **Categories after the supermarket's signs** (2026-11-14, the maintainer). The first eight categories were generic; they now follow the aisles of the family's supermarket, read from photos of its signs and merged to eight: Fruit & vegetables, Chilled, Tins & sauces (aisle 1), Rice, pasta & spirits (2), Drinks & toiletries (3, 4), Household & coffee (5, 6), Bread & deli (7 and the counter), Frozen & sweets. No data is migrated, since no session can write live data: old ids whose meaning only widened are kept (`produce`, `drinks`, `household`, `bakery`, `frozen`); `dairy` and `meat` are read as Chilled; `pantry`, split over three aisles, is read as no category, so such products take the seed list's category, or none until someone picks one. The seed list was re-sorted by where the shop keeps things.
